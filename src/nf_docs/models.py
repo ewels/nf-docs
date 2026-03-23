@@ -78,7 +78,7 @@ class Process:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "docstring": self.docstring,
             "file": self.file,
@@ -305,7 +305,7 @@ class PipelineInput:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "type": self.type,
             "description": self.description,
@@ -375,7 +375,7 @@ class PipelineMetadata:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {"name": self.name}
+        result: dict[str, Any] = {"name": self.name}
         if self.description:
             result["description"] = self.description
         if self.version:

@@ -404,7 +404,7 @@ class LSPClient:
         assert self._process is not None
         assert self._process.stdin is not None
 
-        message = {
+        message: dict[str, Any] = {
             "jsonrpc": "2.0",
             "method": method,
         }
