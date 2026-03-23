@@ -1,6 +1,6 @@
 [project]
 name = "nf-docs"
-version = "0.2.0"
+version = "0.2.1"
 description = "Generate API documentation for Nextflow pipelines by querying the Nextflow Language Server"
 readme = "README.md"
 license = "Apache-2.0"

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Version 0.2.1](https://github.com/ewels/nf-docs/releases/tag/v0.2.1) - 2026-03-23
+
+### Fixed
+
+- Configure additional files for PyPI package distribution
+  ([#6](https://github.com/ewels/nf-docs/pull/6))
+- Fix ty typecheck errors with explicit dict type annotations
+  ([#7](https://github.com/ewels/nf-docs/pull/7))
+
 ## [Version 0.2.0](https://github.com/ewels/nf-docs/releases/tag/v0.2.0) - 2026-03-04
 
 ### Added
