@@ -65,6 +65,13 @@ Repository = "https://github.com/ewels/nf-docs"
 Issues = "https://github.com/ewels/nf-docs/issues"
 Bioconda = "https://bioconda.github.io/recipes/nf-docs/README.html"
 
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.package-data]
+nf_docs = ["templates/*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
