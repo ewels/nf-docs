@@ -26,6 +26,39 @@ nf-docs generate . -f markdown -o docs/
 nf-docs generate . -f json > api.json
 ```
 
+## Pre-commit hook
+
+Use the bundled pre-commit hook to regenerate docs whenever pipeline documentation inputs change:
+
+```yaml
+repos:
+  - repo: https://github.com/ewels/nf-docs
+    rev: v0.2.0
+    hooks:
+      - id: nf-docs
+```
+
+By default, the hook runs:
+
+```bash
+nf-docs generate . --format html
+```
+
+That writes HTML documentation to `docs/`. To customize the command, replace the hook `args` in your
+`.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/ewels/nf-docs
+    rev: v0.2.0
+    hooks:
+      - id: nf-docs
+        args: [., --format, markdown, --output, docs/api]
+```
+
+The hook is triggered by changes to `*.nf`, `nextflow.config`, `nextflow_schema.json`, `meta.yml`,
+and README files.
+
 ### Other commands
 
 ```bash
