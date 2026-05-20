@@ -109,24 +109,54 @@ class PipelineCache:
 
         return hasher.hexdigest()[:32]
 
-    def _get_cache_path(self, workspace: Path) -> Path:
-        """Get the cache file path for a workspace."""
+    def _get_target_file_hash(self, target_file: Path) -> str:
+        """
+        Hash a single target ``.nf`` file plus its sibling ``meta.yml`` (if any).
+
+        Used for single-file mode so each module/subworkflow inside a workspace
+        gets its own cache entry and invalidates independently.
+        """
+        hasher = hashlib.sha256()
+        target = target_file.resolve()
+        # Include the absolute path so different files don't collide.
+        hasher.update(str(target).encode())
+        try:
+            hasher.update(target.read_bytes())
+        except OSError as e:
+            logger.debug(f"Could not hash {target}: {e}")
+        meta = target.parent / "meta.yml"
+        if meta.exists():
+            try:
+                hasher.update(b"meta.yml:")
+                hasher.update(meta.read_bytes())
+            except OSError as e:
+                logger.debug(f"Could not hash {meta}: {e}")
+        return hasher.hexdigest()[:32]
+
+    def _get_cache_path(self, workspace: Path, target_file: Path | None = None) -> Path:
+        """Get the cache file path for a workspace (or a target file within it)."""
         workspace_hash = self._get_workspace_hash(workspace)
+        if target_file is not None:
+            target_hash = self._get_target_file_hash(target_file)
+            return self.cache_dir / f"{nf_docs.__version__}_{workspace_hash}_mod_{target_hash}.json"
         content_hash = self._get_content_hash(workspace)
         # Include version in filename to invalidate old caches when nf-docs is updated
         return self.cache_dir / f"{nf_docs.__version__}_{workspace_hash}_{content_hash}.json"
 
-    def get(self, workspace: Path) -> Pipeline | None:
+    def get(self, workspace: Path, target_file: Path | None = None) -> Pipeline | None:
         """
         Get cached Pipeline if valid.
 
         Args:
             workspace: Path to the pipeline workspace
+            target_file: For single-file mode, the .nf file being extracted.
+                The cache key becomes per-file so different modules within the
+                same workspace don't collide.
 
         Returns:
             Cached Pipeline if valid, None if cache miss or stale
         """
-        cache_path = self._get_cache_path(workspace)
+        cache_path = self._get_cache_path(workspace, target_file)
 
         if not cache_path.exists():
             logger.debug("Cache miss: no cache file")
@@ -142,20 +172,29 @@ class PipelineCache:
             logger.debug(f"Cache miss: failed to load cache: {e}")
             return None
 
-    def set(self, workspace: Path, pipeline: Pipeline) -> None:
+    def set(
+        self,
+        workspace: Path,
+        pipeline: Pipeline,
+        target_file: Path | None = None,
+    ) -> None:
         """
         Store Pipeline in cache.
 
         Args:
             workspace: Path to the pipeline workspace
             pipeline: Pipeline model to cache
+            target_file: For single-file mode, the .nf file being extracted.
         """
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        cache_path = self._get_cache_path(workspace)
+        cache_path = self._get_cache_path(workspace, target_file)
 
-        # Clean up old cache files for this workspace
-        self._cleanup_old_caches(workspace, exclude=cache_path)
+        # Clean up old cache files (per-workspace for pipeline mode, per-file
+        # for single-file mode — we don't want one module to evict another).
+        # ``cache_path`` already encodes the workspace/module hashes, so reuse
+        # it rather than recomputing the (potentially file-reading) hashes.
+        self._cleanup_old_caches(cache_path)
 
         try:
             data = self._serialize_pipeline(pipeline)
@@ -164,16 +203,36 @@ class PipelineCache:
         except Exception as e:
             logger.warning(f"Failed to cache pipeline: {e}")
 
-    def _cleanup_old_caches(self, workspace: Path, exclude: Path | None = None) -> None:
-        """Remove old cache files for a workspace."""
-        workspace_hash = self._get_workspace_hash(workspace)
+    def _cleanup_old_caches(self, current_cache_path: Path) -> None:
+        """
+        Remove obsolete cache files that share a key with ``current_cache_path``.
 
+        The cache filename encodes everything we need:
+        ``{version}_{workspace_hash}_{content_hash}.json`` for pipeline mode and
+        ``{version}_{workspace_hash}_mod_{target_hash}.json`` for single-file
+        mode. We sweep entries that match the same key under any nf-docs
+        version, taking care not to evict module entries from a pipeline-mode
+        cleanup (or vice versa).
+        """
         if not self.cache_dir.exists():
             return
 
-        # Clean up caches from any version for this workspace
-        for cache_file in self.cache_dir.glob(f"*{workspace_hash}_*.json"):
-            if exclude and cache_file == exclude:
+        # Strip the version prefix; what remains identifies the cache key.
+        _, _, key_suffix = current_cache_path.name.partition("_")
+        is_module_entry = "_mod_" in key_suffix
+        if is_module_entry:
+            # Sweep entries for THIS module only.
+            glob = f"*_{key_suffix}"
+        else:
+            # Sweep any non-module entry for this workspace.
+            workspace_hash = key_suffix.split("_", 1)[0]
+            glob = f"*_{workspace_hash}_*.json"
+
+        for cache_file in self.cache_dir.glob(glob):
+            if cache_file == current_cache_path:
+                continue
+            # Pipeline-mode cleanup must not touch module entries.
+            if not is_module_entry and "_mod_" in cache_file.name:
                 continue
             try:
                 cache_file.unlink()

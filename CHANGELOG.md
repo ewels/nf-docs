@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `nf-docs generate` now accepts a path to a single `.nf` file and emits a module-focused document
+  for just that file. By default Markdown output is written to a sibling `README.md`; other formats
+  follow per-format defaults (`json` / `yaml` / `table` print to stdout, `html` writes a sibling
+  `<name>.html`). ([#5](https://github.com/ewels/nf-docs/issues/5))
+
 ## [Version 0.2.1](https://github.com/ewels/nf-docs/releases/tag/v0.2.1) - 2026-03-23
 
 ### Fixed

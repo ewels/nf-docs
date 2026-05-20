@@ -60,6 +60,22 @@ class BaseRenderer(ABC):
         """
         stream.write(self.render(pipeline))
 
+    def render_single_file(self, pipeline: Pipeline) -> str:
+        """
+        Render documentation for a single source file (e.g. a module README).
+
+        Default implementation reuses ``render()``. Renderers that benefit from
+        a more focused shape (e.g. Markdown) can override this.
+
+        Args:
+            pipeline: The Pipeline model to render (will only contain symbols
+                from a single ``.nf`` file)
+
+        Returns:
+            Rendered output as a string
+        """
+        return self.render(pipeline)
+
     def get_title(self, pipeline: Pipeline) -> str:
         """Get the title to use for documentation."""
         if self.title:

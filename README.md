@@ -86,6 +86,17 @@ conda install nf-docs
 
 That's it! Open `docs/index.html` in your browser.
 
+### Document a single module
+
+Pass a single `.nf` file to generate a focused, module-style README:
+
+```bash
+nf-docs generate modules/mytool/subtools/main.nf --format md
+```
+
+By default this writes `README.md` next to `main.nf`. Use `--output` to pick a different path, or
+`--format json` / `--format yaml` to print structured output to stdout instead.
+
 ## Prek / pre-commit hook
 
 `nf-docs` can generate pipeline documentation automatically before each commit using

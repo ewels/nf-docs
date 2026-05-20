@@ -6,6 +6,9 @@
 nf-docs generate PIPELINE_PATH [OPTIONS]
 ```
 
+`PIPELINE_PATH` can be either a pipeline directory or a single `.nf` file (useful for documenting a
+standalone module or subworkflow — see [Document a single module](#document-a-single-module) below).
+
 | Option              | Description                                                          |
 | ------------------- | -------------------------------------------------------------------- |
 | `--format`, `-f`    | Output format: `html` (default), `markdown`, `table`, `json`, `yaml` |
@@ -29,6 +32,26 @@ nf-docs generate . -f json > api.json
 nf-docs generate . -f table -o docs/
 
 ```
+
+### Document a single module
+
+Pass a path to a single `.nf` file to generate a focused, module-style document containing only the
+processes, workflows, and functions defined in that file:
+
+```bash
+# Writes modules/mytool/subtools/README.md next to main.nf
+nf-docs generate modules/mytool/subtools/main.nf --format md
+
+# Pick a different output location
+nf-docs generate modules/mytool/subtools/main.nf -f md -o docs/mytool.md
+
+# Or emit structured data to stdout
+nf-docs generate modules/mytool/subtools/main.nf -f json
+```
+
+The pipeline-level overview, inputs, and configuration sections are skipped in single-file mode, so
+the output is suitable as a drop-in README next to the module. A surrounding `meta.yml` file
+(nf-core style) is still picked up automatically.
 
 ## Prek / pre-commit hook
 

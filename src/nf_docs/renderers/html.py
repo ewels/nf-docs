@@ -469,7 +469,21 @@ class HTMLRenderer(BaseRenderer):
         Returns:
             HTML string
         """
-        title = self.get_title(pipeline)
+        return self._render(pipeline, single_file=False, single_file_label=None)
+
+    def render_single_file(self, pipeline: Pipeline) -> str:
+        """Render HTML for a single ``.nf`` file: no sidebars, retitled."""
+        label = self._single_file_label(pipeline)
+        return self._render(pipeline, single_file=True, single_file_label=label)
+
+    def _render(
+        self,
+        pipeline: Pipeline,
+        *,
+        single_file: bool,
+        single_file_label: str | None,
+    ) -> str:
+        title = single_file_label if (single_file and not self.title) else self.get_title(pipeline)
         input_groups = pipeline.get_input_groups()
         # Get avatar as base64 data URL (currently only supported for GitHub)
         avatar_url = get_repository_avatar_data_url(pipeline.metadata.repository)
@@ -484,6 +498,8 @@ class HTMLRenderer(BaseRenderer):
             avatar_url=avatar_url,
             generation_info=generation_info,
             generation_timestamp=generation_timestamp,
+            single_file=single_file,
+            single_file_label=single_file_label,
         )
 
         # Process with Tailwind if enabled
@@ -497,6 +513,27 @@ class HTMLRenderer(BaseRenderer):
                 html_content = self._inject_tailwind_cdn(html_content)
 
         return html_content
+
+    @staticmethod
+    def _single_file_label(pipeline: Pipeline) -> str:
+        """Pick a heading like ``Module: FASTQC`` for single-file output."""
+        symbols = [*pipeline.processes, *pipeline.workflows, *pipeline.functions]
+        name = ""
+        source_file = ""
+        if len(symbols) == 1:
+            name = symbols[0].name
+            source_file = symbols[0].file or ""
+        elif symbols:
+            source_file = symbols[0].file or ""
+            if source_file:
+                name = Path(source_file).parent.name
+
+        # Prefer "Subworkflow" naming if the file looks like a subworkflow.
+        only_workflows = bool(pipeline.workflows) and not pipeline.processes
+        is_subworkflow_path = "subworkflows/" in source_file
+        noun = "Subworkflow" if (only_workflows or is_subworkflow_path) else "Module"
+
+        return f"{noun}: {name}" if name else noun
 
     def _inject_tailwind_cdn(self, html_content: str) -> str:
         """Inject Tailwind CSS CDN as fallback."""

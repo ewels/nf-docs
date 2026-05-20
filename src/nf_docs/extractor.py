@@ -111,6 +111,21 @@ class ExtractionError(Exception):
     pass
 
 
+def find_pipeline_root(start: Path) -> Path:
+    """
+    Walk up from ``start`` looking for a pipeline root marker.
+
+    Returns the first ancestor that contains ``nextflow.config`` or ``.git``,
+    or ``start.parent`` if no marker is found before the filesystem root.
+    """
+    start = Path(start).resolve()
+    search_from = start.parent if start.is_file() else start
+    for candidate in [search_from, *search_from.parents]:
+        if (candidate / "nextflow.config").exists() or (candidate / ".git").exists():
+            return candidate
+    return search_from
+
+
 class PipelineExtractor:
     """
     Extracts documentation from a Nextflow pipeline.
@@ -127,6 +142,7 @@ class PipelineExtractor:
         use_cache: bool = True,
         force_refresh: bool = False,
         progress_callback: ProgressCallbackType | None = None,
+        target_file: str | Path | None = None,
     ):
         """
         Initialize the extractor.
@@ -138,10 +154,14 @@ class PipelineExtractor:
             use_cache: Whether to use caching for extraction results
             force_refresh: Force re-extraction even if cache exists (still updates cache)
             progress_callback: Optional callback for progress updates
+            target_file: If set, extract only from this single ``.nf`` file
+                instead of scanning the whole workspace. Pipeline-level sources
+                (schema, config, README, cache) are skipped in this mode.
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.language_server_jar = language_server_jar
         self.nextflow_path = nextflow_path
+        self.target_file = Path(target_file).resolve() if target_file else None
         self.cache = PipelineCache() if use_cache else None
         self.force_refresh = force_refresh
         self._progress = progress_callback or null_progress
@@ -167,7 +187,9 @@ class PipelineExtractor:
             )
         )
 
-        # Check cache first (unless force_refresh is set)
+        # Check cache first (unless force_refresh is set). In single-file mode
+        # the cache key is per target file, so each module/subworkflow gets
+        # its own entry within the workspace.
         if self.cache and not self.force_refresh:
             self._progress(
                 ProgressUpdate(
@@ -175,7 +197,7 @@ class PipelineExtractor:
                     message="Checking cache...",
                 )
             )
-            cached = self.cache.get(self.workspace_path)
+            cached = self.cache.get(self.workspace_path, target_file=self.target_file)
             if cached:
                 self._progress(
                     ProgressUpdate(
@@ -186,6 +208,30 @@ class PipelineExtractor:
                 return cached
 
         pipeline = Pipeline()
+
+        # Single-file mode: skip pipeline-level extractors (schema, config, README)
+        # and only run the Language Server against the target file.
+        if self.target_file is not None:
+            git_info = get_git_info(self.workspace_path)
+            if git_info and git_info.base_url and not pipeline.metadata.repository:
+                pipeline.metadata.repository = git_info.base_url
+            self._extract_from_lsp(pipeline, git_info)
+
+            if self.cache:
+                self.cache.set(self.workspace_path, pipeline, target_file=self.target_file)
+
+            self._progress(
+                ProgressUpdate(
+                    phase=ExtractionPhase.COMPLETE,
+                    message="Extraction complete",
+                    detail=(
+                        f"{len(pipeline.workflows)} workflows, "
+                        f"{len(pipeline.processes)} processes, "
+                        f"{len(pipeline.functions)} functions"
+                    ),
+                )
+            )
+            return pipeline
 
         # Extract from schema (has highest priority for inputs and metadata)
         schema_file = find_schema_file(self.workspace_path)
@@ -449,7 +495,10 @@ class PipelineExtractor:
                 message="Scanning for Nextflow files...",
             )
         )
-        nf_files = list(self.workspace_path.rglob("*.nf"))
+        if self.target_file is not None:
+            nf_files = [self.target_file]
+        else:
+            nf_files = list(self.workspace_path.rglob("*.nf"))
         if not nf_files:
             logger.debug("No .nf files found in workspace")
             return
@@ -462,8 +511,13 @@ class PipelineExtractor:
         else:
             logger.debug("No git repository detected or unable to build source URLs")
 
+        # In single-file mode the LSP only needs to know about the target
+        # module's directory — narrowing the root means the LSP doesn't
+        # walk and parse the entire surrounding pipeline on every invocation.
+        lsp_root = self.target_file.parent if self.target_file is not None else self.workspace_path
+
         with LSPClient(
-            self.workspace_path,
+            lsp_root,
             server_jar=self.language_server_jar,
             progress_callback=self._progress,
         ) as client:

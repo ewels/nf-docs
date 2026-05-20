@@ -906,6 +906,7 @@
       class="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 z-50 flex items-center px-4 md:px-6"
     >
       <!-- Mobile menu button -->
+      {% if not single_file %}
       <button
         id="mobile-menu-btn"
         class="md:hidden mr-3 p-1.5 rounded hover:bg-slate-100 transition-colors"
@@ -920,6 +921,7 @@
           ></path>
         </svg>
       </button>
+      {% endif %}
 
       <!-- Left: Organization/user avatar (GitHub only) and pipeline name -->
       <a
@@ -935,8 +937,11 @@
           class="w-6 h-6 rounded mr-2"
         />
         {% endif %}
-        <h1 class="text-lg font-bold text-primary">{{ pipeline.metadata.name or 'Pipeline' }}</h1>
-        {% if pipeline.metadata.version %}
+        <h1 class="text-lg font-bold text-primary">
+          {%- if single_file -%}{{ single_file_label }}{%- else -%}{{ pipeline.metadata.name or
+          'Pipeline' }}{%- endif -%}
+        </h1>
+        {% if pipeline.metadata.version and not single_file %}
         <span class="ml-2 text-sm text-slate-500"
           >v{{ pipeline.metadata.version.lstrip('vV') }}</span
         >
@@ -946,6 +951,7 @@
       <!-- Right: Search and GitHub link -->
       <div class="ml-auto flex items-center gap-4">
         <!-- Search (hidden on mobile, shown in mobile menu) -->
+        {% if not single_file %}
         <div class="relative hidden md:block">
           <input
             type="text"
@@ -968,6 +974,7 @@
             </svg>
           </button>
         </div>
+        {% endif %}
 
         <!-- Dark mode toggle -->
         <button
@@ -1049,6 +1056,7 @@
       </div>
     </header>
 
+    {% if not single_file %}
     <!-- Mobile Navigation Drawer -->
     <div
       id="mobile-menu-overlay"
@@ -1060,7 +1068,10 @@
       class="fixed top-0 left-0 h-full w-72 bg-white z-50 transform -translate-x-full transition-transform duration-300 ease-in-out md:hidden shadow-xl"
     >
       <div class="flex items-center justify-between p-4 border-b border-slate-200">
-        <span class="font-bold text-primary">{{ pipeline.metadata.name or 'Pipeline' }}</span>
+        <span class="font-bold text-primary">
+          {%- if single_file -%}{{ single_file_label }}{%- else -%}{{ pipeline.metadata.name or
+          'Pipeline' }}{%- endif -%}
+        </span>
         <button
           id="mobile-menu-close"
           class="p-1.5 rounded hover:bg-slate-100"
@@ -1078,6 +1089,7 @@
       </div>
 
       <!-- Mobile Navigation Links -->
+      {% if not single_file %}
       <div id="mobile-main-nav">
         <nav class="p-4 border-b border-slate-200">
           <!-- Search link for mobile -->
@@ -1205,6 +1217,7 @@
           {% endif %}
         </nav>
       </div>
+      {% endif %}
 
       <!-- Mobile Table of Contents (hidden by default) -->
       <div id="mobile-toc-nav" class="hidden h-full flex flex-col">
@@ -1231,8 +1244,10 @@
         </nav>
       </div>
     </aside>
+    {% endif %}
 
     <div class="flex min-h-screen pt-14">
+      {% if not single_file %}
       <!-- Left Sidebar - Main Navigation -->
       <aside
         id="left-nav"
@@ -1298,10 +1313,17 @@
           </ul>
         </nav>
       </aside>
+      {% endif %}
 
       <!-- Main content -->
-      <main class="md:ml-56 lg:mr-64 flex-1 p-4 md:p-8 lg:p-12">
+      <main
+        class="{% if not single_file %}md:ml-56 lg:mr-64 {% endif %}flex-1 p-4 md:p-8 lg:p-12{% if single_file %} max-w-4xl mx-auto w-full{% endif %}"
+      >
+        {% if single_file %}
+        <h1 class="text-3xl font-bold mb-6 text-slate-800">{{ single_file_label }}</h1>
+        {% endif %}
         <!-- Search Results Section (hidden by default) -->
+        {% if not single_file %}
         <section id="search-results" class="section hidden">
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Search Results</h1>
 
@@ -1362,7 +1384,7 @@
             <p class="text-sm mt-2">Try a different search term</p>
           </div>
         </section>
-
+        {% endif %} {% if not single_file %}
         <!-- Overview Section -->
         <section id="overview" class="section">
           <h1 class="text-3xl font-bold mb-4 text-slate-800">{{ title }}</h1>
@@ -1438,8 +1460,10 @@
           </ul>
           {% endif %}
         </section>
+        {% endif %}
 
         <!-- Inputs Section -->
+        {% if not single_file %}
         <section id="inputs" class="section hidden">
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Pipeline Inputs</h1>
           <p class="mb-4 text-slate-600">
@@ -1520,7 +1544,7 @@
           </div>
           {% endfor %} {% endfor %}
         </section>
-
+        {% endif %} {% if not single_file %}
         <!-- Config Section -->
         {% if pipeline.config_params %}
         <section id="config" class="section hidden">
@@ -1558,15 +1582,15 @@
           </div>
           {% endfor %}
         </section>
-        {% endif %}
+        {% endif %} {% endif %}
 
         <!-- Workflows Section -->
         {% if pipeline.workflows %}
-        <section id="workflows" class="section hidden">
+        <section id="workflows" class="section{% if not single_file %} hidden{% endif %}">
+          {% if not single_file %}
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Workflows</h1>
           <p class="mb-4 text-slate-600">This page documents all workflows in the pipeline.</p>
-
-          {% for wf in pipeline.workflows|sort(attribute='name') %}
+          {% endif %} {% for wf in pipeline.workflows|sort(attribute='name') %}
           <div
             id="workflow-{{ wf.name or 'entry' }}"
             class="bg-white border border-slate-200 rounded-lg p-4 mb-4"
@@ -1786,11 +1810,11 @@
 
         <!-- Processes Section -->
         {% if pipeline.processes %}
-        <section id="processes" class="section hidden">
+        <section id="processes" class="section{% if not single_file %} hidden{% endif %}">
+          {% if not single_file %}
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Processes</h1>
           <p class="mb-4 text-slate-600">This page documents all processes in the pipeline.</p>
-
-          {% for proc in pipeline.processes|sort(attribute='name') %}
+          {% endif %} {% for proc in pipeline.processes|sort(attribute='name') %}
           <div
             id="process-{{ proc.name }}"
             class="bg-white border border-slate-200 rounded-lg p-4 mb-4"
@@ -2145,13 +2169,13 @@
 
         <!-- Functions Section -->
         {% if pipeline.functions %}
-        <section id="functions" class="section hidden">
+        <section id="functions" class="section{% if not single_file %} hidden{% endif %}">
+          {% if not single_file %}
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Functions</h1>
           <p class="mb-4 text-slate-600">
             This page documents helper functions defined in the pipeline.
           </p>
-
-          {% for func in pipeline.functions|sort(attribute='name') %}
+          {% endif %} {% for func in pipeline.functions|sort(attribute='name') %}
           <div
             id="function-{{ func.name }}"
             class="bg-white border border-slate-200 rounded-lg p-4 mb-4"
@@ -2238,7 +2262,7 @@
         <footer class="page-footer">
           <div class="footer-content">
             <div class="footer-row">
-              <span>Pipeline built with</span>
+              <span>{% if single_file %}Module{% else %}Pipeline{% endif %} built with</span>
               <a
                 href="{{ generation_info.nextflow_url }}"
                 target="_blank"
@@ -2312,6 +2336,7 @@
         </footer>
       </main>
 
+      {% if not single_file %}
       <!-- Right Sidebar - Page Table of Contents -->
       <aside
         id="right-nav"
@@ -2432,9 +2457,11 @@
         </nav>
         {% endif %}
       </aside>
+      {% endif %}
     </div>
 
     <script>
+      {% if not single_file %}
       // Track current section
       let currentSection = 'overview';
 
@@ -3184,6 +3211,7 @@
 
       mobileTocLink.addEventListener('click', showMobileToc);
       mobileTocBack.addEventListener('click', showMobileMainNav);
+      {% endif %}
 
       // ==================== Dark Mode Toggle ====================
 
