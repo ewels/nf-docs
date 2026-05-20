@@ -1,0 +1,8 @@
+- id: nf-docs
+  name: nf-docs
+  description: Generate Nextflow pipeline documentation with nf-docs.
+  entry: nf-docs generate
+  language: python
+  args: [., --format, html]
+  pass_filenames: false
+  files: '(^|/)(.+\.nf|nextflow\.config|nextflow_schema\.json|meta\.yml|README\.(md|rst)|readme\.md)$'

@@ -184,7 +184,7 @@ class Workflow:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "docstring": self.docstring,
             "file": self.file,
@@ -240,7 +240,7 @@ class FunctionParam:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "type": self.type,
             "description": self.description,
@@ -266,7 +266,7 @@ class Function:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "docstring": self.docstring,
             "file": self.file,
@@ -347,7 +347,7 @@ class ConfigParam:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary representation."""
-        result = {
+        result: dict[str, Any] = {
             "name": self.name,
             "type": self.type,
         }

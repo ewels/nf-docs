@@ -30,6 +30,50 @@ nf-docs generate . -f table -o docs/
 
 ```
 
+## Prek / pre-commit hook
+
+Use the bundled hook with [Prek](https://prek.j178.dev/) or [pre-commit](https://pre-commit.com/) to
+regenerate docs whenever pipeline documentation inputs change.
+
+```yaml
+repos:
+  - repo: https://github.com/ewels/nf-docs
+    rev: v0.2.1
+    hooks:
+      - id: nf-docs
+```
+
+Install the hook into your repo:
+
+```bash
+# With Prek (recommended)
+prek install
+
+# Or with pre-commit
+pre-commit install
+```
+
+By default, the hook runs:
+
+```bash
+nf-docs generate . --format html
+```
+
+That writes HTML documentation to `docs/`. To customize the command, replace the hook `args` in your
+`.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/ewels/nf-docs
+    rev: v0.2.1
+    hooks:
+      - id: nf-docs
+        args: [., --format, markdown, --output, docs/api]
+```
+
+The hook is triggered by changes to `*.nf`, `nextflow.config`, `nextflow_schema.json`, `meta.yml`,
+and README files.
+
 ### Other commands
 
 ```bash

@@ -365,7 +365,7 @@ class LSPClient:
         self._request_id += 1
         request_id = self._request_id
 
-        message = {
+        message: dict[str, Any] = {
             "jsonrpc": "2.0",
             "id": request_id,
             "method": method,

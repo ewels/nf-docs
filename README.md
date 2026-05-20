@@ -86,6 +86,41 @@ conda install nf-docs
 
 That's it! Open `docs/index.html` in your browser.
 
+## Prek / pre-commit hook
+
+`nf-docs` can generate pipeline documentation automatically before each commit using
+[Prek](https://prek.j178.dev/) or [pre-commit](https://pre-commit.com/):
+
+```yaml
+repos:
+  - repo: https://github.com/ewels/nf-docs
+    rev: v0.2.1
+    hooks:
+      - id: nf-docs
+```
+
+Install the hook into your repo:
+
+```bash
+# With Prek (recommended)
+prek install
+
+# Or with pre-commit
+pre-commit install
+```
+
+The hook defaults to `nf-docs generate . --format html`, which writes HTML output to `docs/`.
+Override `args` in your `.pre-commit-config.yaml` to use another format or output path:
+
+```yaml
+repos:
+  - repo: https://github.com/ewels/nf-docs
+    rev: v0.2.1
+    hooks:
+      - id: nf-docs
+        args: [., --format, markdown, --output, docs/api]
+```
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing, and contribution guidelines.
