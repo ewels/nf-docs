@@ -61,7 +61,7 @@ regenerate docs whenever pipeline documentation inputs change.
 ```yaml
 repos:
   - repo: https://github.com/ewels/nf-docs
-    rev: v0.2.1
+    rev: v0.3.0
     hooks:
       - id: nf-docs
 ```
@@ -88,7 +88,7 @@ That writes HTML documentation to `docs/`. To customize the command, replace the
 ```yaml
 repos:
   - repo: https://github.com/ewels/nf-docs
-    rev: v0.2.1
+    rev: v0.3.0
     hooks:
       - id: nf-docs
         args: [., --format, markdown, --output, docs/api]

@@ -1,13 +1,10 @@
 # Changelog
 
-## Unreleased
+## [Version 0.3.0](https://github.com/ewels/nf-docs/releases/tag/v0.3.0) - 2026-05-20
 
-### Added
-
-- `nf-docs generate` now accepts a path to a single `.nf` file and emits a module-focused document
-  for just that file. By default Markdown output is written to a sibling `README.md`; other formats
-  follow per-format defaults (`json` / `yaml` / `table` print to stdout, `html` writes a sibling
-  `<name>.html`). ([#5](https://github.com/ewels/nf-docs/issues/5))
+- Single-process docs if run on an individual module [#9](https://github.com/ewels/nf-docs/pull/9)
+- Reusable pre-commit hook manifest so pipelines can regenerate docs on commit
+  [#8](https://github.com/ewels/nf-docs/pull/8)
 
 ## [Version 0.2.1](https://github.com/ewels/nf-docs/releases/tag/v0.2.1) - 2026-03-23
 

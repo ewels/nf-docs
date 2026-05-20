@@ -105,7 +105,7 @@ By default this writes `README.md` next to `main.nf`. Use `--output` to pick a d
 ```yaml
 repos:
   - repo: https://github.com/ewels/nf-docs
-    rev: v0.2.1
+    rev: v0.3.0
     hooks:
       - id: nf-docs
 ```
@@ -126,7 +126,7 @@ Override `args` in your `.pre-commit-config.yaml` to use another format or outpu
 ```yaml
 repos:
   - repo: https://github.com/ewels/nf-docs
-    rev: v0.2.1
+    rev: v0.3.0
     hooks:
       - id: nf-docs
         args: [., --format, markdown, --output, docs/api]
