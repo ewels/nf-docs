@@ -224,6 +224,110 @@ class TestMarkdownRenderer:
 
         assert "# My Custom Title" in output
 
+    def test_render_single_file_module(self):
+        """Single-file output for a module should be focused on the process."""
+        pipeline = Pipeline(
+            processes=[
+                Process(
+                    name="FASTQC",
+                    docstring="Run FastQC",
+                    file="modules/fastqc/main.nf",
+                    line=10,
+                    inputs=[ProcessInput(name="reads", type="path")],
+                    outputs=[ProcessOutput(name="*.html", type="path", emit="html")],
+                )
+            ],
+        )
+
+        output = MarkdownRenderer().render_single_file(pipeline)
+
+        # Top-level heading uses the single symbol's name
+        assert output.splitlines()[0] == "# FASTQC"
+        # Symbol body is present
+        assert "## FASTQC" in output
+        assert "Run FastQC" in output
+        # No multi-file wrappers / pipeline-level sections
+        assert "# Processes" not in output
+        assert "# Pipeline Inputs" not in output
+        assert "inputs.md" not in output
+        assert "processes.md" not in output
+        # Markdown-Extra {#anchor} attribute syntax is stripped — renderers
+        # without attr_list (GitHub, etc.) would show it as literal text.
+        assert "{#" not in output
+        # No project-attribution footer in single-file mode; the README is
+        # meant to be embedded in a docs site with its own footer.
+        assert "was built with" not in output
+
+    def test_render_single_file_uses_meta_description(self):
+        """When a single symbol has a meta.yml description, surface it under the heading."""
+        process = Process(
+            name="FASTQC",
+            file="modules/fastqc/main.nf",
+            line=10,
+        )
+        process.meta_description = "FastQC gives a quick overview of read quality."
+        pipeline = Pipeline(processes=[process])
+
+        output = MarkdownRenderer().render_single_file(pipeline)
+        assert "FastQC gives a quick overview of read quality." in output
+
+    def test_render_single_file_empty(self):
+        """A file with no symbols still produces sensible output."""
+        output = MarkdownRenderer().render_single_file(Pipeline())
+        assert "# Documentation" in output
+        assert "No processes, workflows, or functions" in output
+
+    def test_html_render_single_file(self):
+        """HTML single-file output collapses to a single-page layout."""
+        pipeline = Pipeline(
+            processes=[
+                Process(
+                    name="FASTQC",
+                    docstring="Run FastQC",
+                    file="modules/fastqc/main.nf",
+                    line=3,
+                )
+            ],
+        )
+
+        # use_tailwind=False keeps the test fast and avoids the tailwind subprocess.
+        output = HTMLRenderer(use_tailwind=False).render_single_file(pipeline)
+
+        # Navbar + main heading both use "Module: FASTQC"
+        assert "Module: FASTQC" in output
+        assert "<title>Module: FASTQC</title>" in output
+        # Footer wording flipped from "Pipeline built with" to "Module built with"
+        assert "Module built with" in output
+        assert "Pipeline built with" not in output
+        # Sidebars are not rendered (their CSS rules remain, but the elements don't)
+        assert 'id="left-nav"' not in output
+        assert 'id="right-nav"' not in output
+        assert 'id="mobile-menu-btn"' not in output
+        # The processes section is shown (no `hidden` class on it)
+        assert 'id="processes" class="section">' in output
+        # Pipeline-level sections are not rendered in single-file mode
+        assert 'id="search-results"' not in output
+        assert 'id="inputs"' not in output
+        assert 'id="config"' not in output
+        assert 'id="overview"' not in output
+
+    def test_html_subworkflow_label(self):
+        """Single-workflow files use a 'Subworkflow:' label."""
+        from nf_docs.models import Workflow as WorkflowModel
+
+        pipeline = Pipeline(
+            workflows=[
+                WorkflowModel(
+                    name="ALIGN_READS",
+                    file="subworkflows/align_reads/main.nf",
+                    line=1,
+                )
+            ],
+        )
+        output = HTMLRenderer(use_tailwind=False).render_single_file(pipeline)
+        assert "Subworkflow: ALIGN_READS" in output
+        assert "Module: ALIGN_READS" not in output
+
 
 class TestHTMLRenderer:
     def test_render(self, sample_pipeline: Pipeline):

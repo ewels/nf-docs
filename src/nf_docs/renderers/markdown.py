@@ -5,10 +5,11 @@ Outputs pipeline documentation as a set of Markdown files suitable for
 static site generators like MkDocs, Docusaurus, or GitHub Pages.
 """
 
+import re
 from pathlib import Path
 
 from nf_docs.generation_info import get_markdown_footer
-from nf_docs.models import Pipeline, PipelineInput, Process, Workflow
+from nf_docs.models import Function, Pipeline, PipelineInput, Process, Workflow
 from nf_docs.renderers.base import BaseRenderer
 
 
@@ -121,6 +122,98 @@ class MarkdownRenderer(BaseRenderer):
             created_files.append(functions_file)
 
         return created_files
+
+    def render_single_file(self, pipeline: Pipeline) -> str:
+        """
+        Render documentation for a single ``.nf`` source file as a focused
+        module/subworkflow README.
+
+        Skips the pipeline overview, inputs, and config sections — and the
+        multi-file ``# Processes`` / ``# Workflows`` / ``# Functions`` wrappers
+        with their cross-file TOCs — so the result is suitable as a drop-in
+        ``README.md`` next to the source file.
+        """
+        symbols: list[Process | Workflow | Function] = [
+            *pipeline.processes,
+            *pipeline.workflows,
+            *pipeline.functions,
+        ]
+
+        # Choose a top-level title: meta.yml name, single-symbol name, or generic.
+        title = self.title
+        if not title and len(symbols) == 1:
+            sym = symbols[0]
+            title = getattr(sym, "name", "") or "Documentation"
+        if not title:
+            title = "Documentation"
+
+        lines: list[str] = [f"# {title}", ""]
+
+        # If the file has exactly one symbol with a meta.yml description, surface
+        # it directly under the top heading so the README reads naturally.
+        if len(symbols) == 1:
+            meta_desc = getattr(symbols[0], "meta_description", None)
+            if meta_desc:
+                lines.append(meta_desc)
+                lines.append("")
+
+        body: list[str] = []
+        for process in pipeline.processes:
+            body.extend(self._render_process(process))
+        for workflow in pipeline.workflows:
+            body.extend(self._render_workflow(workflow, pipeline))
+        for func in pipeline.functions:
+            body.extend(self._render_function(func))
+
+        if not body:
+            lines.append("*No processes, workflows, or functions found in this file.*")
+        else:
+            lines.extend(body)
+
+        # Strip Markdown-Extra ``{#anchor}`` attribute syntax — there are no
+        # cross-file links to anchor to in single-file output, and renderers
+        # without the ``attr_list`` extension (GitHub, etc.) show the braces
+        # as literal text. Slug-based anchors are auto-generated downstream.
+        rendered = re.sub(r"\s*\{#[^}]+\}\s*$", "", "\n".join(lines), flags=re.MULTILINE)
+
+        return rendered.rstrip() + "\n"
+
+    def _render_function(self, func: Function) -> list[str]:
+        """Render a single function block (used by both multi- and single-file output)."""
+        lines: list[str] = []
+        anchor = self._make_anchor(func.name)
+        lines.append(f"## {func.name} {{#{anchor}}}")
+        lines.append("")
+
+        if func.file:
+            lines.append(f"*Defined in `{func.file}:{func.line}`*")
+            lines.append("")
+
+        params_str = ", ".join(p.name for p in func.params)
+        lines.append(f"```groovy\ndef {func.name}({params_str})\n```")
+        lines.append("")
+
+        if func.docstring:
+            lines.append(func.docstring)
+            lines.append("")
+
+        if func.params:
+            lines.append("### Parameters")
+            lines.append("")
+            lines.append("| Name | Description | Default |")
+            lines.append("|------|-------------|---------|")
+            for param in func.params:
+                default = f"`{param.default}`" if param.default is not None else "-"
+                lines.append(f"| `{param.name}` | {param.description or '-'} | {default} |")
+            lines.append("")
+
+        if func.return_description:
+            lines.append("### Returns")
+            lines.append("")
+            lines.append(func.return_description)
+            lines.append("")
+
+        return lines
 
     def _render_index(self, pipeline: Pipeline) -> str:
         """Render the index/overview page."""
@@ -607,43 +700,7 @@ class MarkdownRenderer(BaseRenderer):
         # Function details
         for func in pipeline.functions:
             lines.append("")
-
-            anchor = self._make_anchor(func.name)
-            lines.append(f"## {func.name} {{#{anchor}}}")
-            lines.append("")
-
-            # Source location
-            if func.file:
-                lines.append(f"*Defined in `{func.file}:{func.line}`*")
-                lines.append("")
-
-            # Signature
-            params_str = ", ".join(p.name for p in func.params)
-            lines.append(f"```groovy\ndef {func.name}({params_str})\n```")
-            lines.append("")
-
-            # Docstring
-            if func.docstring:
-                lines.append(func.docstring)
-                lines.append("")
-
-            # Parameters
-            if func.params:
-                lines.append("### Parameters")
-                lines.append("")
-                lines.append("| Name | Description | Default |")
-                lines.append("|------|-------------|---------|")
-                for param in func.params:
-                    default = f"`{param.default}`" if param.default is not None else "-"
-                    lines.append(f"| `{param.name}` | {param.description or '-'} | {default} |")
-                lines.append("")
-
-            # Return
-            if func.return_description:
-                lines.append("### Returns")
-                lines.append("")
-                lines.append(func.return_description)
-                lines.append("")
+            lines.extend(self._render_function(func))
 
         return "\n".join(lines)
 

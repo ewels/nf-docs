@@ -3,7 +3,8 @@
 from pathlib import Path
 from unittest.mock import patch
 
-from nf_docs.extractor import PipelineExtractor
+from nf_docs.cache import PipelineCache
+from nf_docs.extractor import PipelineExtractor, find_pipeline_root
 
 
 class TestPipelineExtractor:
@@ -36,6 +37,131 @@ class TestPipelineExtractor:
 
             # Schema description takes priority
             assert pipeline.metadata.description is not None
+
+
+class TestFindPipelineRoot:
+    def test_finds_nextflow_config(self, tmp_path: Path):
+        """Walks up to the directory containing nextflow.config."""
+        (tmp_path / "nextflow.config").write_text("")
+        nested = tmp_path / "modules" / "tool" / "main.nf"
+        nested.parent.mkdir(parents=True)
+        nested.write_text("")
+
+        assert find_pipeline_root(nested) == tmp_path.resolve()
+
+    def test_finds_git_dir(self, tmp_path: Path):
+        """Walks up to the directory containing .git."""
+        (tmp_path / ".git").mkdir()
+        nested = tmp_path / "subdir" / "main.nf"
+        nested.parent.mkdir()
+        nested.write_text("")
+
+        assert find_pipeline_root(nested) == tmp_path.resolve()
+
+    def test_falls_back_to_parent(self, tmp_path: Path):
+        """Falls back to the file's parent when no marker is found."""
+        nf_file = tmp_path / "lonely.nf"
+        nf_file.write_text("")
+
+        # tmp_path has no nextflow.config or .git, so we fall back to parent.
+        result = find_pipeline_root(nf_file)
+        # Either tmp_path itself or one of its ancestors that happens to
+        # contain a .git (test runner working dir). We just assert the file
+        # is inside the returned root.
+        assert nf_file.resolve().is_relative_to(result)
+
+
+class TestSingleFileMode:
+    def test_target_file_skips_pipeline_level_extractors(self, sample_pipeline: Path):
+        """In single-file mode, schema / config / README are NOT parsed."""
+        target = sample_pipeline / "main.nf"
+
+        with patch.object(PipelineExtractor, "_extract_from_lsp") as mock_lsp:
+            extractor = PipelineExtractor(
+                workspace_path=sample_pipeline,
+                target_file=target,
+                use_cache=False,
+            )
+            pipeline = extractor.extract()
+
+            # LSP extraction still runs
+            mock_lsp.assert_called_once()
+
+            # Schema-derived inputs should NOT be present
+            assert pipeline.inputs == []
+            # Config-derived params should NOT be present
+            assert pipeline.config_params == []
+            # README content should NOT be loaded
+            assert pipeline.metadata.readme_content == ""
+            # Pipeline name is NOT inferred from workspace dir in this mode
+            assert pipeline.metadata.name == ""
+
+    def test_target_file_restricts_lsp_scan(self, tmp_path: Path):
+        """_extract_from_lsp scans only the target file, not the whole workspace."""
+        (tmp_path / "nextflow.config").write_text("")
+        target = tmp_path / "modules" / "tool" / "main.nf"
+        target.parent.mkdir(parents=True)
+        target.write_text("process FOO {}\n")
+        # Other .nf files in workspace that should be IGNORED in single-file mode
+        (tmp_path / "other.nf").write_text("process BAR {}\n")
+
+        seen_files: list[Path] = []
+
+        def fake_extract_file_symbols(self, client, file_path, pipeline, git_info=None):
+            seen_files.append(file_path)
+
+        # Patch the inner LSPClient so we don't actually start the server.
+        with (
+            patch("nf_docs.extractor.LSPClient") as mock_lsp_cls,
+            patch.object(
+                PipelineExtractor,
+                "_extract_file_symbols",
+                fake_extract_file_symbols,
+            ),
+        ):
+            mock_lsp_cls.return_value.__enter__.return_value.get_workspace_symbols.return_value = []
+
+            extractor = PipelineExtractor(
+                workspace_path=tmp_path,
+                target_file=target,
+                use_cache=False,
+            )
+            extractor.extract()
+
+        # Only the target file was processed
+        assert seen_files == [target.resolve()]
+
+    def test_target_file_uses_per_file_cache_key(self, tmp_path: Path):
+        """Single-file mode caches per-target-file, not per-workspace."""
+        target_a = tmp_path / "a" / "main.nf"
+        target_b = tmp_path / "b" / "main.nf"
+        target_a.parent.mkdir()
+        target_b.parent.mkdir()
+        target_a.write_text("process A {}\n")
+        target_b.write_text("process B {}\n")
+
+        cache = PipelineCache(cache_dir=tmp_path / ".cache")
+        # Different target files inside the same workspace must produce
+        # different cache paths so module results don't collide.
+        path_a = cache._get_cache_path(tmp_path, target_file=target_a)
+        path_b = cache._get_cache_path(tmp_path, target_file=target_b)
+        path_pipeline = cache._get_cache_path(tmp_path)
+
+        assert path_a != path_b
+        assert path_a != path_pipeline
+        assert "_mod_" in path_a.name
+        assert "_mod_" not in path_pipeline.name
+
+    def test_target_file_cache_invalidates_on_content_change(self, tmp_path: Path):
+        """Editing the target file changes its cache key."""
+        target = tmp_path / "main.nf"
+        target.write_text("process FASTQC {}\n")
+
+        cache = PipelineCache(cache_dir=tmp_path / ".cache")
+        before = cache._get_cache_path(tmp_path, target_file=target)
+        target.write_text("process BWA {}\n")
+        after = cache._get_cache_path(tmp_path, target_file=target)
+        assert before != after
 
 
 class TestReadmeExtraction:
