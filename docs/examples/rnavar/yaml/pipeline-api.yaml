@@ -1,0 +1,6219 @@
+pipeline:
+  name: nf-core/rnavar
+  description: GATK4 RNA variant calling pipeline
+  version: 1.3.0dev
+  homepage: https://github.com/nf-core/rnavar
+  repository: https://github.com/nf-core/rnavar
+  readme_content: '## Introduction
+
+
+    **nf-core/rnavar** is a bioinformatics pipeline for RNA variant calling analysis following GATK4 best
+    practices.
+
+
+    ## Pipeline summary
+
+
+    1. Merge re-sequenced FastQ files ([`cat`](http://www.linfo.org/cat.html))
+
+    2. Read QC ([`FastQC`](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/))
+
+    3. (Optionally) Extract UMIs from FASTQ reads ([`UMI-tools`](https://github.com/CGATOxford/UMI-tools))
+
+    4. (Optionally) HLATyping from FASTQ reads ([`Seq2HLA`](https://github.com/TRON-Bioinformatics/seq2HLA))
+
+    5. Align reads to reference genome ([`STAR`](https://github.com/alexdobin/STAR))
+
+    6. Sort and index alignments ([`SAMtools`](https://sourceforge.net/projects/samtools/files/samtools/))
+
+    7. Duplicate read marking ([`Picard MarkDuplicates`](https://gatk.broadinstitute.org/hc/en-us/articles/360037052812-MarkDuplicates-Picard))
+
+    8. Scatter one interval-list into many interval-files ([`GATK4 IntervalListTools`](https://gatk.broadinstitute.org/hc/en-us/articles/4409917392155-IntervalListTools-Picard-))
+
+    9. Splits reads that contain Ns in their cigar string ([`GATK4 SplitNCigarReads`](https://gatk.broadinstitute.org/hc/en-us/articles/4409917482651-SplitNCigarReads))
+
+    10. Estimate and correct systematic bias using base quality score recalibration ([`GATK4 BaseRecalibrator`](https://gatk.broadinstitute.org/hc/en-us/articles/4409897206043-BaseRecalibrator),
+    [`GATK4 ApplyBQSR`](https://gatk.broadinstitute.org/hc/en-us/articles/4409897168667-ApplyBQSR))
+
+    11. Convert a BED file to a Picard Interval List ([`GATK4 BedToIntervalList`](https://gatk.broadinstitute.org/hc/en-us/articles/4409924780827-BedToIntervalList-Picard-))
+
+    12. Call SNPs and indels ([`GATK4 HaplotypeCaller`](https://gatk.broadinstitute.org/hc/en-us/articles/4409897180827-HaplotypeCaller))
+
+    13. Merge multiple VCF files into one VCF ([`GATK4 MergeVCFs`](https://gatk.broadinstitute.org/hc/en-us/articles/4409924817691-MergeVcfs-Picard-))
+
+    14. Index the VCF ([`Tabix`](http://www.htslib.org/doc/tabix.html))
+
+    15. Filter variant calls based on certain criteria ([`GATK4 VariantFiltration`](https://gatk.broadinstitute.org/hc/en-us/articles/4409897204763-VariantFiltration))
+
+    16. Annotate variants ([`BCFtools Annotate`](https://samtools.github.io/bcftools/bcftools.html), [`snpEff`](https://pcingola.github.io/SnpEff/se_introduction/),
+    [Ensembl VEP](https://www.ensembl.org/info/docs/tools/vep/index.html))
+
+    17. Present QC for raw read, alignment, gene biotype, sample similarity, and strand-specificity checks
+    ([`MultiQC`](http://multiqc.info/), [`R`](https://www.r-project.org/))
+
+
+    ### Summary of tools and version used in the pipeline
+
+
+    | Tool       | Version |
+
+    | ---------- | ------- |
+
+    | BCFTools   | 1.22    |
+
+    | BEDTools   | 2.31.1  |
+
+    | cat        | 9.5     |
+
+    | EnsemblVEP | 115.2   |
+
+    | FastQC     | 0.12.1  |
+
+    | GATK       | 4.6.2.0 |
+
+    | GffRead    | 0.12.7  |
+
+    | HTSlib     | 1.21    |
+
+    | Mosdepth   | 0.3.10  |
+
+    | MultiQC    | 1.33    |
+
+    | Picard     | 3.4.0   |
+
+    | SAMtools   | 1.22.1  |
+
+    | Seq2HLA    | 2.3     |
+
+    | SnpEff     | 5.3.0a  |
+
+    | STAR       | 2.7.11b |
+
+    | Tabix      | 1.21    |
+
+    | UMI-tools  | 1.1.6   |
+
+
+    ## Usage
+
+
+    > [!NOTE]
+
+    > If you are new to Nextflow and nf-core, please refer to [this page](https://nf-co.re/docs/usage/installation)
+    on how to set-up Nextflow. Make sure to [test your setup](https://nf-co.re/docs/usage/introduction#how-to-run-a-pipeline)
+    with `-profile test` before running the workflow on actual data.
+
+
+    First, prepare a samplesheet with your input data that looks as follows:
+
+
+    `samplesheet.csv`:
+
+
+    ```csv
+
+    sample,fastq_1,fastq_2
+
+    CONTROL_REP1,AEG588A1_S1_L002_R1_001.fastq.gz,AEG588A1_S1_L002_R2_001.fastq.gz
+
+    ```
+
+
+    Each row represents a fastq file (single-end) or a pair of fastq files (paired end).
+
+
+    Now, you can run the pipeline using:
+
+
+    ```console
+
+    nextflow run nf-core/rnavar -profile <docker/singularity/podman/shifter/charliecloud/conda/institute>
+    --input samplesheet.csv  --outdir <OUTDIR> --genome GRCh38
+
+    ```
+
+
+    > [!WARNING]
+
+    > Please provide pipeline parameters via the CLI or Nextflow `-params-file` option. Custom config
+    files including those provided by the `-c` Nextflow option can be used to provide any configuration
+    _**except for parameters**_; see [docs](https://nf-co.re/docs/usage/getting_started/configuration#custom-configuration-files).
+
+
+    For more details and further functionality, please refer to the [usage documentation](https://nf-co.re/rnavar/usage)
+    and the [parameter documentation](https://nf-co.re/rnavar/parameters).
+
+
+    ## Pipeline output
+
+
+    To see the results of an example test run with a full size dataset refer to the [results](https://nf-co.re/rnavar/results)
+    tab on the nf-core website pipeline page.
+
+    For more details about the output files and reports, please refer to the
+
+    [output documentation](https://nf-co.re/rnavar/output).
+
+
+    ## Credits
+
+
+    rnavar was originally written by Praveen Raj and Maxime U Garcia at [The Swedish Childhood Tumor Biobank
+    (Barntumörbanken), Karolinska Institutet](https://ki.se/forskning/barntumorbanken).
+
+    Nicolas Vannieuwkerke at [CMGG](https://www.cmgg.be/en/) later joined and helped with further development
+    (1.1.0 and forward).
+
+
+    Maintenance is now lead by Maxime U Garcia (before at [Seqera](https://seqera.io), now at [NGI](https://ngisweden.scilifelab.se/))
+
+
+    Main developers:
+
+
+    - [Maxime U Garcia](https://github.com/maxulysse)
+
+    - [Nicolas Vannieuwkerke](https://github.com/nvnieuwk)
+
+
+    We thank the following people for their extensive assistance in the development of this pipeline:
+
+
+    - [Harshil Patel](https://github.com/drpatelh)
+
+    - [Nicolás Schcolnicov](https://github.com/nschcolnicov)
+
+    - [Ömer An](https://github.com/bounlu)
+
+    - [Phil Ewels](https://github.com/ewels)
+
+    - [Praveen Raj](https://github.com/praveenraj2018)
+
+    - [Sarah Maman](https://github.com/SarahMaman)
+
+
+    ## Contributions and Support
+
+
+    If you would like to contribute to this pipeline, please see the [contributing guidelines](.github/CONTRIBUTING.md).
+
+
+    For further information or help, don''t hesitate to get in touch on the [Slack `#rnavar` channel](https://nfcore.slack.com/channels/rnavar)
+    (you can join with [this invite](https://nf-co.re/join/slack)).
+
+
+    ## Citations
+
+
+    If you use nf-core/rnavar for your analysis, please cite it using the following doi: [10.5281/zenodo.6669636](https://doi.org/10.5281/zenodo.6669636)
+
+
+    An extensive list of references for the tools used by the pipeline can be found in the [`CITATIONS.md`](CITATIONS.md)
+    file.
+
+
+    You can cite the `nf-core` publication as follows:
+
+
+    > **The nf-core framework for community-curated bioinformatics pipelines.**
+
+    >
+
+    > Philip Ewels, Alexander Peltzer, Sven Fillinger, Harshil Patel, Johannes Alneberg, Andreas Wilm,
+    Maxime Ulysse Garcia, Paolo Di Tommaso & Sven Nahnsen.
+
+    >
+
+    > _Nat Biotechnol._ 2020 Feb 13. doi: [10.1038/s41587-020-0439-x](https://dx.doi.org/10.1038/s41587-020-0439-x).
+
+    '
+inputs:
+- name: input
+  type: string
+  description: Path to comma-separated file containing information about the samples in the experiment.
+  required: true
+  help_text: A design file with information about the samples in your experiment. Use this parameter to
+    specify the location of the input files. It has to be a tab or comma-separated file with a header
+    row or a JSON/YAML file. See [usage docs](https://nf-co.re/rnavar/usage#input).
+  format: file-path
+  pattern: ^\S+\.(csv|tsv|yaml|yml|json)$
+  group: Input/output options
+  fa_icon: fas fa-file-csv
+- name: outdir
+  type: string
+  description: The output directory where the results will be saved. You have to use absolute paths to
+    storage on Cloud infrastructure.
+  required: true
+  format: directory-path
+  group: Input/output options
+  fa_icon: fas fa-folder-open
+- name: tools
+  type: string
+  description: Specify which additional tools RNAvar should use. Values can be 'seq2hla', 'bcfann', 'snpeff',
+    'vep' or 'merge'. If you specify 'merge', the pipeline runs both snpeff and VEP annotation.
+  required: false
+  help_text: 'List of tools to be used in addition to variant calling: currently hlatyping with Seq2HLA
+    and a choice of annotation tools.'
+  pattern: ^((bcfann|seq2hla|snpeff|vep|merge)*(,)*)*$
+  group: Input/output options
+  hidden: true
+  fa_icon: fas fa-hammer
+- name: save_merged_fastq
+  type: boolean
+  description: Save FastQ files after merging re-sequenced libraries in the results directory.
+  required: false
+  group: Input/output options
+  fa_icon: fas fa-file-download
+- name: extract_umi
+  type: boolean
+  description: Specify whether to remove UMIs from the reads with UMI-tools extract.
+  required: false
+  group: Preprocessing of alignment
+  fa_icon: fas fa-hammer
+- name: umitools_extract_method
+  type: string
+  description: UMI pattern to use. Can be either 'string' (default) or 'regex'.
+  required: false
+  help_text: 'More details can be found in the [UMI-tools documentation](https://umi-tools.readthedocs.io/en/latest/reference/extract.html#extract-method).
+
+    '
+  default: string
+  enum:
+  - string
+  - regex
+  group: Preprocessing of alignment
+  fa_icon: fas fa-barcode
+- name: umitools_bc_pattern
+  type: string
+  description: The UMI barcode pattern to use e.g. 'NNNNNN' indicates that the first 6 nucleotides of
+    the read are from the UMI.
+  required: false
+  help_text: More details can be found in the [UMI-tools documentation](https://umi-tools.readthedocs.io/en/latest/reference/extract.html#extract-method).
+  pattern: ^[NXC]*$
+  group: Preprocessing of alignment
+  fa_icon: fas fa-barcode
+- name: umitools_bc_pattern2
+  type: string
+  description: The UMI barcode pattern to use if the UMI is located in read 2.
+  required: false
+  pattern: ^[NXC]*$
+  group: Preprocessing of alignment
+  fa_icon: fas fa-barcode
+- name: umitools_umi_separator
+  type: string
+  description: The character that separates the UMI in the read name. Most likely a colon if you skipped
+    the extraction with UMI-tools and used other software.
+  required: false
+  group: Preprocessing of alignment
+  fa_icon: fas fa-star-half-alt
+- name: aligner
+  type: string
+  description: Specifies the alignment algorithm to use.
+  required: true
+  help_text: This parameter define which aligner is to be used for aligning the RNA reads to the reference
+    genome.
+  default: star
+  enum:
+  - star
+  group: Alignment options
+- name: star_index
+  type: string
+  description: Path to STAR index folder or compressed file (tar.gz)
+  required: false
+  help_text: This parameter can be used if there is an pre-defined STAR index available. You can either
+    give the full path to the index directory or a compressed file in tar.gz format.
+  format: path
+  group: Alignment options
+- name: star_twopass
+  type: boolean
+  description: Enable STAR 2-pass mapping mode.
+  required: false
+  help_text: This parameter enables STAR to perform 2-pass mapping. Default true.
+  default: true
+  group: Alignment options
+- name: star_ignore_sjdbgtf
+  type: boolean
+  description: Do not use GTF file during STAR index building step
+  required: false
+  help_text: Do not use parameter --sjdbGTFfile <GTF file> during the STAR genomeGenerate process.
+  group: Alignment options
+- name: star_max_memory_bamsort
+  type: integer
+  description: Option to limit RAM when sorting BAM file. Value to be specified in bytes. If 0, will be
+    set to the genome index size.
+  required: false
+  help_text: This parameter specifies the maximum available RAM (bytes) for sorting BAM during STAR alignment.
+  default: 0
+  group: Alignment options
+- name: star_bins_bamsort
+  type: integer
+  description: Specifies the number of genome bins for coordinate-sorting
+  required: false
+  help_text: This parameter specifies the number of bins to be used for coordinate sorting during STAR
+    alignment step.
+  default: 50
+  group: Alignment options
+- name: star_max_collapsed_junc
+  type: integer
+  description: Specifies the maximum number of collapsed junctions
+  required: false
+  default: 1000000
+  group: Alignment options
+- name: star_max_intron_size
+  type: integer
+  description: Specifies the maximum intron size
+  required: false
+  help_text: This parameter specifies the maximum intron size for STAR alignment
+  group: Alignment options
+- name: seq_center
+  type: string
+  description: Sequencing center information to be added to read group of BAM files.
+  required: false
+  help_text: 'This parameter is required for creating a proper BAM header to use in the downstream analysis
+    of GATK. '
+  group: Alignment options
+- name: seq_platform
+  type: string
+  description: Specify the sequencing platform used
+  required: true
+  help_text: 'This parameter is required for creating a proper BAM header to use in the downstream analysis
+    of GATK. '
+  default: illumina
+  group: Alignment options
+- name: save_unaligned
+  type: boolean
+  description: Where possible, save unaligned reads from aligner to the results directory.
+  required: false
+  help_text: This may either be in the form of FastQ or BAM files depending on the options available for
+    that particular tool.
+  group: Alignment options
+- name: save_align_intermeds
+  type: boolean
+  description: Save the intermediate BAM files from the alignment step.
+  required: false
+  help_text: By default, intermediate BAM files will not be saved. The final BAM files created after the
+    appropriate filtering step are always saved to limit storage usage. Set this parameter to also save
+    other intermediate BAM files.
+  group: Alignment options
+- name: bam_csi_index
+  type: boolean
+  description: Create a CSI index for BAM files instead of the traditional BAI index. This will be required
+    for genomes with larger chromosome sizes.
+  required: false
+  group: Alignment options
+- name: remove_duplicates
+  type: boolean
+  description: Specify whether to remove duplicates from the BAM during Picard MarkDuplicates step.
+  required: false
+  help_text: Specify true for removing duplicates from BAM file during Picard MarkDuplicates step.
+  group: Postprocessing of alignment
+  fa_icon: fas fa-hammer
+- name: gatk_hc_call_conf
+  type: integer
+  description: The minimum phred-scaled confidence threshold at which variants should be called.
+  required: false
+  help_text: Specify the minimum phred-scaled confidence threshold at which variants should be called.
+  default: 20
+  group: Variant calling
+  fa_icon: fas fa-hammer
+- name: generate_gvcf
+  type: boolean
+  description: Enable generation of GVCFs by sample additionnaly to the VCFs.
+  required: false
+  help_text: This parameter enables GATK HAPLOTYPECALLER to generate GVCFs. Default false.
+  group: Variant calling
+- name: gatk_interval_scatter_count
+  type: integer
+  description: Number of times the gene interval list to be split in order to run GATK haplotype caller
+    in parallel
+  required: false
+  help_text: Set this parameter to decide the number of splits for the gene interval list file.
+  default: 25
+  group: Variant calling
+- name: no_intervals
+  type: boolean
+  description: Do not use gene interval file during variant calling
+  required: false
+  help_text: This parameter, if set to True, does not use the gene intervals during the variant calling
+    step, which then results in variants from all regions including non-genic. Default is False
+  group: Variant calling
+- name: gatk_vf_qd_filter
+  type: number
+  description: Value to be used for the QualByDepth (QD) filter
+  required: false
+  help_text: "This parameter defines the value to use for the QualByDepth (QD) filter in the GATK variant-filtering\
+    \ step. \nThe value should given in a float number format."
+  default: 2
+  group: Variant filtering
+- name: gatk_vf_fs_filter
+  type: number
+  description: Value to be used for the FisherStrand (FS) filter
+  required: false
+  help_text: "This parameter defines the value to use for the FisherStrand (FS) filter in the GATK variant-filtering\
+    \ step. \nThe value should given in a float number format."
+  default: 30
+  group: Variant filtering
+- name: gatk_vf_window_size
+  type: integer
+  description: The window size (in bases) in which to evaluate clustered SNPs.
+  required: false
+  help_text: This parameter is used by GATK variant filteration step. It defines the window size (in bases)
+    in which to evaluate clustered SNPs. It has to be used together with the other option 'cluster'.
+  default: 35
+  group: Variant filtering
+- name: gatk_vf_cluster_size
+  type: integer
+  description: The number of SNPs which make up a cluster. Must be at least 2.
+  required: false
+  help_text: This parameter is used by GATK variant filteration step. It defines the number of SNPs which
+    make up a cluster within a window. Must be at least 2.
+  default: 3
+  group: Variant filtering
+- name: vep_cache
+  type: string
+  description: Path to VEP cache.
+  required: false
+  help_text: Path to VEP cache which should contain the relevant species, genome and build directories
+    at the path ${vep_species}/${vep_genome}_${vep_cache_version}
+  default: s3://annotation-cache/vep_cache/
+  format: directory-path
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: snpeff_cache
+  type: string
+  description: Path to snpEff cache.
+  required: false
+  help_text: Path to snpEff cache which should contain the relevant genome and build directory in the
+    path ${snpeff_species}.${snpeff_version}
+  default: s3://annotation-cache/snpeff_cache/
+  format: directory-path
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: vep_include_fasta
+  type: boolean
+  description: Allow usage of fasta file for annotation with VEP
+  required: false
+  help_text: 'By pointing VEP to a FASTA file, it is possible to retrieve reference sequence locally.
+    This enables VEP to retrieve HGVS notations (--hgvs), check the reference sequence given in input
+    data, and construct transcript models from a GFF or GTF file without accessing a database.
+
+
+    For details, see [here](https://www.ensembl.org/info/docs/tools/vep/script/vep_cache.html#fasta).'
+  group: Variant Annotation
+  hidden: true
+  fa_icon: fas fa-file
+- name: vep_dbnsfp
+  type: boolean
+  description: Enable the use of the VEP dbNSFP plugin.
+  required: false
+  help_text: For details, see [here](https://www.ensembl.org/info/docs/tools/vep/script/vep_plugins.html#dbnsfp).
+  group: Variant Annotation
+  fa_icon: fas fa-database
+- name: dbnsfp
+  type: string
+  description: Path to dbNSFP processed file.
+  required: false
+  help_text: 'To be used with `--vep_dbnsfp`.
+
+    dbNSFP files and more information are available at https://www.ensembl.org/info/docs/tools/vep/script/vep_plugins.html#dbnsfp
+    and https://sites.google.com/site/jpopgen/dbNSFP/'
+  format: file-path
+  pattern: ^\S+\.gz$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: dbnsfp_tbi
+  type: string
+  description: Path to dbNSFP tabix indexed file.
+  required: false
+  help_text: To be used with `--vep_dbnsfp`.
+  format: file-path
+  pattern: ^\S+\.tbi$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: dbnsfp_consequence
+  type: string
+  description: Consequence to annotate with
+  required: false
+  help_text: 'To be used with `--vep_dbnsfp`.
+
+    This params is used to filter/limit outputs to a specific effect of the variant.
+
+    The set of consequence terms is defined by the Sequence Ontology and an overview of those used in
+    VEP can be found here: https://www.ensembl.org/info/genome/variation/prediction/predicted_data.html
+
+    If one wants to filter using several consequences, then separate those by using ''&'' (i.e. ''consequence=3_prime_UTR_variant&intron_variant''.'
+  group: Variant Annotation
+  fa_icon: fas fa-arrow-alt-circle-right
+- name: dbnsfp_fields
+  type: string
+  description: Fields to annotate with
+  required: false
+  help_text: 'To be used with `--vep_dbnsfp`.
+
+    This params can be used to retrieve individual values from the dbNSFP file. The values correspond
+    to the name of the columns in the dbNSFP file and are separated by comma.
+
+    The column names might differ between the different dbNSFP versions. Please check the Readme.txt file,
+    which is provided with the dbNSFP file, to obtain the correct column names. The Readme file contains
+    also a short description of the provided values and the version of the tools used to generate them.
+
+
+    Default value are explained below:
+
+
+    rs_dbSNP - rs number from dbSNP
+
+    HGVSc_VEP - HGVS coding variant presentation from VEP. Multiple entries separated by '';'', corresponds
+    to Ensembl_transcriptid
+
+    HGVSp_VEP - HGVS protein variant presentation from VEP. Multiple entries separated by '';'', corresponds
+    to Ensembl_proteinid
+
+    1000Gp3_EAS_AF - Alternative allele frequency in the 1000Gp3 East Asian descendent samples
+
+    1000Gp3_AMR_AF - Alternative allele counts in the 1000Gp3 American descendent samples
+
+    LRT_score - Original LRT two-sided p-value (LRTori), ranges from 0 to 1
+
+    GERP++_RS - Conservation score. The larger the score, the more conserved the site, ranges from -12.3
+    to 6.17
+
+    gnomAD_exomes_AF - Alternative allele frequency in the whole gnomAD exome samples.'
+  default: rs_dbSNP,HGVSc_VEP,HGVSp_VEP,1000Gp3_EAS_AF,1000Gp3_AMR_AF,LRT_score,GERP++_RS,gnomAD_exomes_AF
+  group: Variant Annotation
+  fa_icon: fas fa-border-all
+- name: vep_loftee
+  type: boolean
+  description: Enable the use of the VEP LOFTEE plugin.
+  required: false
+  help_text: For details, see [here](https://github.com/konradjk/loftee).
+  group: Variant Annotation
+  fa_icon: fas fa-database
+- name: vep_spliceai
+  type: boolean
+  description: Enable the use of the VEP SpliceAI plugin.
+  required: false
+  help_text: For details, see [here](https://www.ensembl.org/info/docs/tools/vep/script/vep_plugins.html#spliceai).
+  group: Variant Annotation
+  fa_icon: fas fa-database
+- name: spliceai_snv
+  type: string
+  description: Path to spliceai raw scores snv file.
+  required: false
+  help_text: To be used with `--vep_spliceai`.
+  format: file-path
+  pattern: ^\S+\.vcf\.gz$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: spliceai_snv_tbi
+  type: string
+  description: Path to spliceai raw scores snv tabix indexed file.
+  required: false
+  help_text: To be used with `--vep_spliceai`.
+  format: file-path
+  pattern: ^\S+\.tbi$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: spliceai_indel
+  type: string
+  description: Path to spliceai raw scores indel file.
+  required: false
+  help_text: To be used with `--vep_spliceai`.
+  format: file-path
+  pattern: ^\S+\.vcf\.gz$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: spliceai_indel_tbi
+  type: string
+  description: Path to spliceai raw scores indel tabix indexed file.
+  required: false
+  help_text: To be used with `--vep_spliceai`.
+  format: file-path
+  pattern: ^\S+\.tbi$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: vep_spliceregion
+  type: boolean
+  description: Enable the use of the VEP SpliceRegion plugin.
+  required: false
+  help_text: For details, see [here](https://www.ensembl.org/info/docs/tools/vep/script/vep_plugins.html#spliceregion)
+    and [here](https://www.ensembl.info/2018/10/26/cool-stuff-the-vep-can-do-splice-site-variant-annotation/).
+  group: Variant Annotation
+  fa_icon: fas fa-database
+- name: vep_custom_args
+  type: string
+  description: Add an extra custom argument to VEP.
+  required: false
+  help_text: Using this parameter, you can add custom args to VEP.
+  default: --everything --filter_common --per_gene --total_length --offline --format vcf
+  group: Variant Annotation
+  fa_icon: fas fa-toolbox
+- name: outdir_cache
+  type: string
+  description: The output directory where the cache will be saved. You have to use absolute paths to storage
+    on Cloud infrastructure.
+  required: false
+  format: directory-path
+  group: Variant Annotation
+  hidden: true
+  fa_icon: fas fa-folder-open
+- name: vep_out_format
+  type: string
+  description: VEP output-file format.
+  required: false
+  help_text: Sets the format of the output-file from VEP.
+  default: vcf
+  enum:
+  - json
+  - tab
+  - vcf
+  group: Variant Annotation
+  hidden: true
+  fa_icon: fas fa-table
+- name: bcftools_annotations
+  type: string
+  description: A vcf file containing custom annotations to be used with bcftools annotate. Needs to be
+    bgzipped.
+  required: false
+  format: file-path
+  pattern: ^\S+\.vcf\.gz$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: bcftools_annotations_tbi
+  type: string
+  description: Index file for `bcftools_annotations`
+  required: false
+  format: file-path
+  pattern: ^\S+\.vcf\.gz\.tbi$
+  group: Variant Annotation
+  fa_icon: fas fa-file
+- name: bcftools_columns
+  type: string
+  description: Optional text file with list of columns to use from `bcftools_annotations`, one name per
+    row
+  required: false
+  group: Variant Annotation
+  fa_icon: fas fa-align-center
+- name: bcftools_header_lines
+  type: string
+  description: Text file with the header lines of `bcftools_annotations`
+  required: false
+  group: Variant Annotation
+  fa_icon: fas fa-align-center
+- name: skip_baserecalibration
+  type: boolean
+  description: Skip the process of base recalibration steps i.e., GATK BaseRecalibrator and GATK ApplyBQSR.
+  required: false
+  help_text: This parameter disable the base recalibration step, thus using a un-calibrated BAM file for
+    variant calling.
+  group: Pipeline stage options
+- name: skip_intervallisttools
+  type: boolean
+  description: Skip the process of preparing interval lists for the GATK variant calling step
+  required: false
+  help_text: This parameter disable preparing multiple interval lists to use with HaplotypeCaller module
+    of GATK. It is recommended not to disable the step as it is required to run the variant calling correctly.
+  group: Pipeline stage options
+- name: skip_variantfiltration
+  type: boolean
+  description: Skip variant filtering of GATK
+  required: false
+  help_text: Set this parameter if you don't want to filter any variants.
+  group: Pipeline stage options
+- name: skip_variantannotation
+  type: boolean
+  description: Skip variant annotation
+  required: false
+  help_text: Set this parameter if you don't want to run variant annotation.
+  group: Pipeline stage options
+- name: skip_multiqc
+  type: boolean
+  description: Skip MultiQC reports
+  required: false
+  help_text: This parameter disable all QC reports
+  group: Pipeline stage options
+- name: skip_exon_bed_check
+  type: boolean
+  description: Skip the check of the exon bed
+  required: false
+  help_text: Set this parameter if you don't want to the pipeline to check and filter unknown regions
+    in the exon bed file.
+  group: Pipeline stage options
+- name: igenomes_base
+  type: string
+  description: The base path to the igenomes reference files
+  required: false
+  default: s3://ngi-igenomes/igenomes/
+  format: directory-path
+  group: General reference genome options
+  fa_icon: fas fa-ban
+- name: igenomes_ignore
+  type: boolean
+  description: Do not load the iGenomes reference config.
+  required: false
+  help_text: Do not load `igenomes.config` when running the pipeline. You may choose this option if you
+    observe clashes between custom parameters and those supplied in `igenomes.config`. **NB** You can
+    then run `Sarek` by specifying at least a FASTA genome file
+  group: General reference genome options
+  fa_icon: fas fa-ban
+- name: save_reference
+  type: boolean
+  description: Save built references.
+  required: false
+  help_text: Set this parameter, if you wish to save all computed reference files. This is useful to avoid
+    re-computation on future runs.
+  group: General reference genome options
+  fa_icon: fas fa-download
+- name: download_cache
+  type: boolean
+  description: Download annotation cache.
+  required: false
+  help_text: 'Set this parameter, if you wish to download annotation cache.
+
+    Using this parameter will download cache even if --snpeff_cache and --vep_cache are provided.'
+  group: General reference genome options
+  fa_icon: fas fa-download
+- name: genome
+  type: string
+  description: Name of iGenomes reference.
+  required: false
+  help_text: 'If using a reference genome configured in the pipeline using iGenomes, use this parameter
+    to give the ID for the reference. This is then used to build the full paths for all required reference
+    genome files e.g. `--genome GRCh38`.
+
+
+    See the [nf-core website docs](https://nf-co.re/usage/reference_genomes) for more details.'
+  default: GRCh38
+  group: Reference genome options
+  fa_icon: fas fa-book
+- name: fasta
+  type: string
+  description: Path to FASTA genome file.
+  required: false
+  help_text: 'This parameter is *mandatory* if `--genome` is not specified.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  format: file-path
+  pattern: ^\S+\.fn?a(sta)?(\.gz)?$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: dict
+  type: string
+  description: Path to FASTA dictionary file.
+  required: false
+  help_text: '> **NB** If none provided, will be generated automatically from the FASTA reference. Combine
+    with `--save_reference` to save for future runs.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  format: file-path
+  pattern: ^\S+\.dict$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: fasta_fai
+  type: string
+  description: Path to FASTA reference index.
+  required: false
+  help_text: '> **NB** If none provided, will be generated automatically from the FASTA reference. Combine
+    with `--save_reference` to save for future runs.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  format: file-path
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: gtf
+  type: string
+  description: Path to GTF annotation file.
+  required: false
+  help_text: This parameter is *mandatory* if `--genome` is not specified.
+  format: file-path
+  pattern: ^\S+\.gtf$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: gff
+  type: string
+  description: Path to GFF3 annotation file.
+  required: false
+  help_text: This parameter must be specified if `--genome` or `--gtf` are not specified.
+  format: file-path
+  pattern: ^\S+\.gff\d?$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: exon_bed
+  type: string
+  description: Path to BED file containing exon intervals. This will be created from the GTF file if not
+    specified.
+  required: false
+  format: file-path
+  pattern: ^\S+\.bed$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: read_length
+  type: number
+  description: Read length
+  required: false
+  help_text: Specify the read length for the STAR aligner.
+  default: 150
+  group: Reference genome options
+- name: known_indels
+  type: string
+  description: Path to known indels file.
+  required: false
+  help_text: If you use AWS iGenomes, this has already been set for you appropriately.
+  format: file-path-pattern
+  group: Reference genome options
+  fa_icon: fas fa-copy
+- name: known_indels_tbi
+  type: string
+  description: Path to known indels file index.
+  required: false
+  help_text: '> **NB** If none provided, will be generated automatically from the known index file, if
+    provided. Combine with `--save_reference` to save for future runs.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  format: file-path-pattern
+  group: Reference genome options
+  fa_icon: fas fa-copy
+- name: dbsnp
+  type: string
+  description: Path to dbsnp file.
+  required: false
+  help_text: If you use AWS iGenomes, this has already been set for you appropriately.
+  format: file-path
+  pattern: ^\S+\.vcf\.gz$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: dbsnp_tbi
+  type: string
+  description: Path to dbsnp index.
+  required: false
+  help_text: '> **NB** If none provided, will be generated automatically from the dbsnp file. Combine
+    with `--save_reference` to save for future runs.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  format: file-path
+  pattern: ^\S+\.vcf\.gz\.tbi$
+  group: Reference genome options
+  fa_icon: fas fa-file
+- name: snpeff_db
+  type: string
+  description: snpEff DB version.
+  required: false
+  help_text: 'This is used to specify the database to be use to annotate with.
+
+    Alternatively databases'' names can be listed with the `snpEff databases`.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  group: Reference genome options
+  fa_icon: fas fa-database
+- name: vep_genome
+  type: string
+  description: VEP genome.
+  required: false
+  help_text: 'This is used to specify the genome when looking for local cache, or cloud based cache.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  group: Reference genome options
+  fa_icon: fas fa-microscope
+- name: vep_species
+  type: string
+  description: VEP species.
+  required: false
+  help_text: 'Alternatively species listed in Ensembl Genomes caches can be used.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  group: Reference genome options
+  fa_icon: fas fa-microscope
+- name: vep_cache_version
+  type: integer
+  description: VEP cache version.
+  required: false
+  help_text: 'Alternative cache version can be used to specify the correct Ensembl Genomes version number
+    as these differ from the concurrent Ensembl/VEP version numbers.
+
+
+    If you use AWS iGenomes, this has already been set for you appropriately.'
+  group: Reference genome options
+  fa_icon: fas fa-tag
+- name: feature_type
+  type: string
+  description: Type of feature to parse from annotation file
+  required: false
+  default: exon
+  enum:
+  - exon
+  - transcript
+  - gene
+  group: Reference genome options
+- name: custom_config_version
+  type: string
+  description: Git commit id for Institutional configs.
+  required: false
+  default: master
+  group: Institutional config options
+  hidden: true
+  fa_icon: fas fa-users-cog
+- name: custom_config_base
+  type: string
+  description: Base directory for Institutional configs.
+  required: false
+  help_text: If you're running offline, Nextflow will not be able to fetch the institutional config files
+    from the internet. If you don't need them, then this is not a problem. If you do need them, you should
+    download the files from the repo and tell Nextflow where to find them with this parameter.
+  default: https://raw.githubusercontent.com/nf-core/configs/master
+  group: Institutional config options
+  hidden: true
+  fa_icon: fas fa-users-cog
+- name: config_profile_name
+  type: string
+  description: Institutional config name.
+  required: false
+  group: Institutional config options
+  hidden: true
+  fa_icon: fas fa-users-cog
+- name: config_profile_description
+  type: string
+  description: Institutional config description.
+  required: false
+  group: Institutional config options
+  hidden: true
+  fa_icon: fas fa-users-cog
+- name: config_profile_contact
+  type: string
+  description: Institutional config contact information.
+  required: false
+  group: Institutional config options
+  hidden: true
+  fa_icon: fas fa-users-cog
+- name: config_profile_url
+  type: string
+  description: Institutional config URL link.
+  required: false
+  group: Institutional config options
+  hidden: true
+  fa_icon: fas fa-users-cog
+- name: version
+  type: boolean
+  description: Display version and exit.
+  required: false
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-question-circle
+- name: publish_dir_mode
+  type: string
+  description: Method used to save pipeline results to output directory.
+  required: false
+  help_text: The Nextflow `publishDir` option specifies which intermediate files should be saved to the
+    output directory. This option tells the pipeline what method should be used to move these files. See
+    [Nextflow docs](https://www.nextflow.io/docs/latest/process.html#publishdir) for details.
+  default: copy
+  enum:
+  - symlink
+  - rellink
+  - link
+  - copy
+  - copyNoFollow
+  - move
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-copy
+- name: email
+  type: string
+  description: Email address for completion summary.
+  required: false
+  help_text: Set this parameter to your e-mail address to get a summary e-mail with details of the run
+    sent to you when the workflow exits. If set in your user config file (`~/.nextflow/config`) then you
+    don't need to specify this on the command line for every run.
+  pattern: ^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$
+  group: Generic options
+  fa_icon: fas fa-envelope
+- name: email_on_fail
+  type: string
+  description: Email address for completion summary, only when pipeline fails.
+  required: false
+  help_text: An email address to send a summary email to when the pipeline is completed - ONLY sent if
+    the pipeline does not exit successfully.
+  pattern: ^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-exclamation-triangle
+- name: plaintext_email
+  type: boolean
+  description: Send plain-text email instead of HTML.
+  required: false
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-remove-format
+- name: max_multiqc_email_size
+  type: string
+  description: File size limit when attaching MultiQC reports to summary emails.
+  required: false
+  default: 25.MB
+  pattern: ^\d+(\.\d+)?\.?\s*(K|M|G|T)?B$
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-file-upload
+- name: monochrome_logs
+  type: boolean
+  description: Do not use coloured log outputs.
+  required: false
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-palette
+- name: hook_url
+  type: string
+  description: Incoming hook URL for messaging service
+  required: false
+  help_text: Incoming hook URL for messaging service. Currently, MS Teams and Slack are supported.
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-people-group
+- name: multiqc_config
+  type: string
+  description: Custom config file to supply to MultiQC.
+  required: false
+  format: file-path
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-cog
+- name: multiqc_logo
+  type: string
+  description: Custom logo file to supply to MultiQC. File name must also be set in the MultiQC config
+    file
+  required: false
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-image
+- name: multiqc_methods_description
+  type: string
+  description: Custom MultiQC yaml file containing HTML including a methods description.
+  required: false
+  group: Generic options
+  fa_icon: fas fa-cog
+- name: multiqc_title
+  type: string
+  description: MultiQC report title. Printed as page header, used for filename if not otherwise specified.
+  required: false
+  group: Generic options
+  fa_icon: fas fa-file-signature
+- name: validate_params
+  type: boolean
+  description: Boolean whether to validate parameters against the schema at runtime
+  required: false
+  default: true
+  group: Generic options
+  hidden: true
+  fa_icon: fas fa-check-square
+- name: modules_testdata_base_path
+  type: string
+  description: Base URL or local path to location of pipeline test dataset files
+  required: false
+  default: https://raw.githubusercontent.com/nf-core/test-datasets/modules/data/
+  group: Generic options
+  hidden: true
+  fa_icon: far fa-check-circle
+- name: pipelines_testdata_base_path
+  type: string
+  description: Base URL or local path to location of pipeline test dataset files
+  required: false
+  default: https://raw.githubusercontent.com/nf-core/test-datasets/rnavar/data/
+  group: Generic options
+  hidden: true
+  fa_icon: far fa-check-circle
+- name: trace_report_suffix
+  type: string
+  description: Suffix to add to the trace report filename. Default is the date and time in the format
+    yyyy-MM-dd_HH-mm-ss.
+  required: false
+  group: Generic options
+  hidden: true
+  fa_icon: far calendar
+- name: help
+  type: boolean
+  description: Display the help message.
+  required: false
+  group: Generic options
+- name: help_full
+  type: boolean
+  description: Display the full detailed help message.
+  required: false
+  group: Generic options
+- name: show_hidden
+  type: boolean
+  description: Display hidden parameters in the help message (only works when --help or --help_full are
+    provided).
+  required: false
+  group: Generic options
+config_params: []
+workflows:
+- name: NFCORE_RNAVAR
+  docstring: ''
+  file: main.nf
+  line: 63
+  end_line: 203
+  inputs:
+  - name: samplesheet
+    type: ''
+    description: ''
+  - name: align
+    type: ''
+    description: ''
+  outputs:
+  - name: '?'
+    type: ''
+    description: ''
+  - name: '?'
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/main.nf#L63-L203
+- name: ''
+  docstring: ''
+  file: main.nf
+  line: 211
+  end_line: 300
+  inputs: []
+  outputs: []
+  calls: []
+  is_entry: true
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/main.nf#L211-L300
+- name: RNAVAR
+  docstring: 'Main workflow for RNA variant calling analysis.
+
+    This workflow performs end-to-end RNA-seq variant calling including:
+
+    - Quality control with FastQC
+
+    - Read alignment with STAR
+
+    - Duplicate marking with Picard
+
+    - Split N CIGAR reads for RNA-seq data
+
+    - Base quality score recalibration (BQSR)
+
+    - Variant calling with GATK HaplotypeCaller
+
+    - Variant filtering
+
+    - Variant annotation with SnpEff and VEP
+
+    - HLA typing with seq2HLA (optional)
+
+    The workflow supports multiple input types including FASTQ, BAM, CRAM, and VCF files.'
+  file: workflows/rnavar.nf
+  line: 83
+  end_line: 430
+  inputs:
+  - name: input
+    type: ''
+    description: ''
+  - name: bcftools_annotations
+    type: ''
+    description: ''
+  - name: bcftools_annotations_tbi
+    type: ''
+    description: ''
+  - name: bcftools_columns
+    type: ''
+    description: ''
+  - name: bcftools_header_lines
+    type: ''
+    description: ''
+  - name: dbsnp
+    type: ''
+    description: ''
+  - name: dbsnp_tbi
+    type: ''
+    description: ''
+  - name: dict
+    type: ''
+    description: ''
+  - name: exon_bed
+    type: ''
+    description: ''
+  - name: fasta
+    type: ''
+    description: ''
+  - name: fasta_fai
+    type: ''
+    description: ''
+  - name: gtf
+    type: ''
+    description: ''
+  - name: known_sites
+    type: ''
+    description: ''
+  - name: known_sites_tbi
+    type: ''
+    description: ''
+  - name: star_index
+    type: ''
+    description: ''
+  - name: snpeff_cache
+    type: ''
+    description: ''
+  - name: snpeff_db
+    type: ''
+    description: ''
+  - name: vep_genome
+    type: ''
+    description: ''
+  - name: vep_species
+    type: ''
+    description: ''
+  - name: vep_cache_version
+    type: ''
+    description: ''
+  - name: vep_include_fasta
+    type: ''
+    description: ''
+  - name: vep_cache
+    type: ''
+    description: ''
+  - name: vep_extra_files
+    type: ''
+    description: ''
+  - name: seq_center
+    type: ''
+    description: ''
+  - name: seq_platform
+    type: ''
+    description: ''
+  - name: aligner
+    type: ''
+    description: ''
+  - name: bam_csi_index
+    type: ''
+    description: ''
+  - name: extract_umi
+    type: ''
+    description: ''
+  - name: generate_gvcf
+    type: ''
+    description: ''
+  - name: skip_multiqc
+    type: ''
+    description: ''
+  - name: skip_baserecalibration
+    type: ''
+    description: ''
+  - name: skip_intervallisttools
+    type: ''
+    description: ''
+  - name: skip_variantannotation
+    type: ''
+    description: ''
+  - name: skip_variantfiltration
+    type: ''
+    description: ''
+  - name: star_ignore_sjdbgtf
+    type: ''
+    description: ''
+  - name: tools
+    type: ''
+    description: ''
+  outputs:
+  - name: '?'
+    type: ''
+    description: ''
+  - name: '?'
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/workflows/rnavar.nf#L83-L430
+- name: BAM_STATS_SAMTOOLS
+  docstring: ''
+  file: subworkflows/nf-core/bam_stats_samtools/main.nf
+  line: 9
+  end_line: 31
+  inputs:
+  - name: ch_bam_bai
+    type: ''
+    description: ''
+  - name: ch_fasta
+    type: ''
+    description: ''
+  outputs:
+  - name: stats
+    type: ''
+    description: ''
+  - name: flagstat
+    type: ''
+    description: ''
+  - name: idxstats
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/nf-core/bam_stats_samtools/main.nf#L9-L31
+  meta_description: Produces comprehensive statistics from SAM/BAM/CRAM file
+  meta_keywords:
+  - statistics
+  - counts
+  - bam
+  - sam
+  - cram
+  meta_components:
+  - samtools/stats
+  - samtools/idxstats
+  - samtools/flagstat
+  meta_inputs:
+  - name: ch_bam_bai
+    description: 'The input channel containing the BAM/CRAM and it''s index
+
+      Structure: [ val(meta), path(bam), path(bai) ]'
+  - name: ch_fasta
+    description: 'Reference genome fasta file
+
+      Structure: [ path(fasta) ]'
+  meta_outputs:
+  - name: stats
+    description: 'File containing samtools stats output
+
+      Structure: [ val(meta), path(stats) ]'
+  - name: flagstat
+    description: 'File containing samtools flagstat output
+
+      Structure: [ val(meta), path(flagstat) ]'
+  - name: idxstats
+    description: 'File containing samtools idxstats output
+
+      Structure: [ val(meta), path(idxstats)]'
+  - name: versions
+    description: 'Files containing software versions
+
+      Structure: [ path(versions.yml) ]'
+  meta_authors:
+  - '@drpatelh'
+  meta_maintainers:
+  - '@drpatelh'
+- name: FASTQ_ALIGN_STAR
+  docstring: ''
+  file: subworkflows/nf-core/fastq_align_star/main.nf
+  line: 6
+  end_line: 68
+  inputs:
+  - name: ch_reads
+    type: ''
+    description: ''
+  - name: ch_index
+    type: ''
+    description: ''
+  - name: ch_gtf
+    type: ''
+    description: ''
+  - name: val_star_ignore_sjdbgtf
+    type: ''
+    description: ''
+  - name: val_seq_platform
+    type: ''
+    description: ''
+  - name: val_seq_center
+    type: ''
+    description: ''
+  - name: ch_fasta
+    type: ''
+    description: ''
+  - name: ch_transcripts_fasta
+    type: ''
+    description: ''
+  outputs:
+  - name: orig_bam
+    type: ''
+    description: ''
+  - name: log_final
+    type: ''
+    description: ''
+  - name: log_out
+    type: ''
+    description: ''
+  - name: log_progress
+    type: ''
+    description: ''
+  - name: bam_sorted
+    type: ''
+    description: ''
+  - name: fastq
+    type: ''
+    description: ''
+  - name: tab
+    type: ''
+    description: ''
+  - name: orig_bam_transcript
+    type: ''
+    description: ''
+  - name: bam
+    type: ''
+    description: ''
+  - name: bai
+    type: ''
+    description: ''
+  - name: stats
+    type: ''
+    description: ''
+  - name: flagstat
+    type: ''
+    description: ''
+  - name: idxstats
+    type: ''
+    description: ''
+  - name: bam_transcript
+    type: ''
+    description: ''
+  - name: bai_transcript
+    type: ''
+    description: ''
+  - name: stats_transcript
+    type: ''
+    description: ''
+  - name: flagstat_transcript
+    type: ''
+    description: ''
+  - name: idxstats_transcript
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/nf-core/fastq_align_star/main.nf#L6-L68
+  meta_description: Align reads to a reference genome using bowtie2 then sort with samtools
+  meta_keywords:
+  - align
+  - fasta
+  - genome
+  - reference
+  meta_components:
+  - star/align
+  - samtools/sort
+  - samtools/index
+  - samtools/stats
+  - samtools/idxstats
+  - samtools/flagstat
+  - bam_sort_stats_samtools
+  meta_inputs:
+  - name: ch_reads
+    description: 'List of input FastQ files of size 1 and 2 for single-end and paired-end data,
+
+      respectively.
+
+      Structure: [ val(meta), [ path(reads) ] ]'
+  - name: ch_index
+    type: directory
+    description: STAR genome index
+    pattern: star
+  - name: ch_gtf
+    type: file
+    description: GTF file used to set the splice junctions with the --sjdbGTFfile flag
+    pattern: '*.gtf'
+  - name: val_star_ignore_sjdbgtf
+    type: boolean
+    description: If true the --sjdbGTFfile flag is set
+    pattern: true|false
+  - name: val_seq_platform
+    type: string
+    description: Sequencing platform to be added to the bam header using the --outSAMattrRGline flag
+  - name: val_seq_center
+    type: string
+    description: Sequencing center to be added to the bam header using the --outSAMattrRGline flag
+  - name: ch_fasta
+    type: file
+    description: Reference genome fasta file
+    pattern: '*.{fasta,fa,fna}'
+  - name: ch_transcripts_fasta
+    type: file
+    description: Optional reference genome fasta file
+    pattern: '*.{fasta,fa,fna}'
+  meta_outputs:
+  - name: orig_bam
+    description: 'Output BAM file containing read alignments
+
+      Structure: [ val(meta), path(bam) ]'
+  - name: log_final
+    description: 'STAR final log file
+
+      Structure: [ val(meta), path(log_final) ]'
+  - name: log_out
+    description: 'STAR log out file
+
+      Structure: [ val(meta), path(log_out) ]'
+  - name: log_progress
+    description: 'STAR log progress file
+
+      Structure: [ val(meta), path(log_progress) ]'
+  - name: bam_sorted
+    description: 'Sorted BAM file of read alignments (optional)
+
+      Structure: [ val(meta), path(bam) ]'
+  - name: orig_bam_transcript
+    description: 'Output BAM file of transcriptome alignment (optional)
+
+      Structure: [ val(meta), path(bam) ]'
+  - name: fastq
+    description: 'Unmapped FastQ files (optional)
+
+      Structure: [ val(meta), path(fastq) ]'
+  - name: tab
+    description: 'STAR output tab file(s) (optional)
+
+      Structure: [ val(meta), path(tab) ]'
+  - name: bam
+    description: 'BAM file ordered by samtools
+
+      Structure: [ val(meta), path(bam) ]'
+  - name: bai
+    description: 'BAI index of the ordered BAM file
+
+      Structure: [ val(meta), path(bai) ]'
+  - name: stats
+    description: 'File containing samtools stats output
+
+      Structure: [ val(meta), path(stats) ]'
+  - name: flagstat
+    description: 'File containing samtools flagstat output
+
+      Structure: [ val(meta), path(flagstat) ]'
+  - name: idxstats
+    description: 'File containing samtools idxstats output
+
+      Structure: [ val(meta), path(idxstats) ]'
+  - name: bam_transcript
+    description: 'Transcriptome-level BAM file ordered by samtools  (optional)
+
+      Structure: [ val(meta), path(bam) ]'
+  - name: bai_transcript
+    description: 'Transcriptome-level BAI index of the ordered BAM file (optional)
+
+      Structure: [ val(meta), path(bai) ]'
+  - name: stats_transcript
+    description: 'Transcriptome-level file containing samtools stats output (optional)
+
+      Structure: [ val(meta), path(stats) ]'
+  - name: flagstat_transcript
+    description: 'Transcriptome-level file containing samtools flagstat output (optional)
+
+      Structure: [ val(meta), path(flagstat) ]'
+  - name: idxstats_transcript
+    description: 'Transcriptome-level file containing samtools idxstats output (optional)
+
+      Structure: [ val(meta), path(idxstats) ]'
+  - name: versions
+    type: file
+    description: File containing software versions
+    pattern: versions.yml
+  meta_authors:
+  - '@JoseEspinosa'
+  meta_maintainers:
+  - '@JoseEspinosa'
+- name: VCF_ANNOTATE_SNPEFF
+  docstring: ''
+  file: subworkflows/nf-core/vcf_annotate_snpeff/main.nf
+  line: 8
+  end_line: 29
+  inputs:
+  - name: ch_vcf
+    type: ''
+    description: ''
+  - name: val_snpeff_db
+    type: ''
+    description: ''
+  - name: ch_snpeff_cache
+    type: ''
+    description: ''
+  outputs:
+  - name: vcf_tbi
+    type: ''
+    description: ''
+  - name: reports
+    type: ''
+    description: ''
+  - name: summary
+    type: ''
+    description: ''
+  - name: genes_txt
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/nf-core/vcf_annotate_snpeff/main.nf#L8-L29
+  meta_description: Perform annotation with snpEff and bgzip + tabix index the resulting VCF file
+  meta_keywords:
+  - vcf
+  - annotation
+  - snpeff
+  meta_components:
+  - snpeff
+  - snpeff/snpeff
+  - tabix/bgziptabix
+  meta_inputs:
+  - name: ch_vcf
+    description: 'vcf file
+
+      Structure: [ val(meta), path(vcf) ]'
+  - name: val_snpeff_db
+    type: string
+    description: db version to use
+  - name: ch_snpeff_cache
+    description: 'path to root cache folder for snpEff (optional)
+
+      Structure: [ path(cache) ]'
+  meta_outputs:
+  - name: vcf_tbi
+    description: 'Compressed vcf file + tabix index
+
+      Structure: [ val(meta), path(vcf), path(tbi) ]'
+  - name: reports
+    description: 'html reports
+
+      Structure: [ path(html) ]'
+  - name: summary
+    description: 'html reports
+
+      Structure: [ path(csv) ]'
+  - name: genes_txt
+    description: 'html reports
+
+      Structure: [ path(txt) ]'
+  - name: versions
+    description: 'Files containing software versions
+
+      Structure: [ path(versions.yml) ]'
+  meta_authors:
+  - '@maxulysse'
+  meta_maintainers:
+  - '@maxulysse'
+- name: VCF_ANNOTATE_ENSEMBLVEP
+  docstring: ''
+  file: subworkflows/nf-core/vcf_annotate_ensemblvep/main.nf
+  line: 8
+  end_line: 38
+  inputs:
+  - name: ch_vcf
+    type: ''
+    description: ''
+  - name: ch_fasta
+    type: ''
+    description: ''
+  - name: val_genome
+    type: ''
+    description: ''
+  - name: val_species
+    type: ''
+    description: ''
+  - name: val_cache_version
+    type: ''
+    description: ''
+  - name: ch_cache
+    type: ''
+    description: ''
+  - name: ch_extra_files
+    type: ''
+    description: ''
+  outputs:
+  - name: vcf_tbi
+    type: ''
+    description: ''
+  - name: json
+    type: ''
+    description: ''
+  - name: tab
+    type: ''
+    description: ''
+  - name: reports
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/nf-core/vcf_annotate_ensemblvep/main.nf#L8-L38
+  meta_description: Perform annotation with ensemblvep and bgzip + tabix index the resulting VCF file
+  meta_keywords:
+  - vcf
+  - annotation
+  - ensemblvep
+  meta_components:
+  - ensemblvep/vep
+  - tabix/tabix
+  meta_inputs:
+  - name: ch_vcf
+    description: 'vcf file to annotate
+
+      Structure: [ val(meta), path(vcf), [path(custom_file1), path(custom_file2)... (optional)] ]'
+  - name: ch_fasta
+    description: 'Reference genome fasta file (optional)
+
+      Structure: [ val(meta2), path(fasta) ]'
+  - name: val_genome
+    type: string
+    description: genome to use
+  - name: val_species
+    type: string
+    description: species to use
+  - name: val_cache_version
+    type: integer
+    description: cache version to use
+  - name: ch_cache
+    description: 'the root cache folder for ensemblvep (optional)
+
+      Structure: [ val(meta3), path(cache) ]'
+  - name: ch_extra_files
+    description: 'any extra files needed by plugins for ensemblvep (optional)
+
+      Structure: [ path(file1), path(file2)... ]'
+  meta_outputs:
+  - name: vcf_tbi
+    description: 'Compressed vcf file + tabix index
+
+      Structure: [ val(meta), path(vcf), path(tbi) ]'
+  - name: json
+    description: 'json file
+
+      Structure: [ val(meta), path(json) ]'
+  - name: tab
+    description: 'tab file
+
+      Structure: [ val(meta), path(tab) ]'
+  - name: reports
+    type: file
+    description: html reports
+    pattern: '*.html'
+  - name: versions
+    type: file
+    description: File containing software versions
+    pattern: versions.yml
+  meta_authors:
+  - '@maxulysse'
+  - '@matthdsm'
+  - '@nvnieuwk'
+  meta_maintainers:
+  - '@maxulysse'
+  - '@matthdsm'
+  - '@nvnieuwk'
+- name: BAM_MARKDUPLICATES_PICARD
+  docstring: ''
+  file: subworkflows/nf-core/bam_markduplicates_picard/main.nf
+  line: 9
+  end_line: 54
+  inputs:
+  - name: ch_reads
+    type: ''
+    description: ''
+  - name: ch_fasta
+    type: ''
+    description: ''
+  - name: ch_fai
+    type: ''
+    description: ''
+  outputs:
+  - name: bam
+    type: ''
+    description: ''
+  - name: cram
+    type: ''
+    description: ''
+  - name: metrics
+    type: ''
+    description: ''
+  - name: bai
+    type: ''
+    description: ''
+  - name: crai
+    type: ''
+    description: ''
+  - name: csi
+    type: ''
+    description: ''
+  - name: stats
+    type: ''
+    description: ''
+  - name: flagstat
+    type: ''
+    description: ''
+  - name: idxstats
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/nf-core/bam_markduplicates_picard/main.nf#L9-L54
+  meta_description: Picard MarkDuplicates, index BAM file and run samtools stats, flagstat and idxstats
+  meta_keywords:
+  - markduplicates
+  - bam
+  - sam
+  - cram
+  meta_components:
+  - picard/markduplicates
+  - samtools/index
+  - samtools/stats
+  - samtools/idxstats
+  - samtools/flagstat
+  - bam_stats_samtools
+  meta_inputs:
+  - name: ch_reads
+    description: 'Sequence reads in BAM/CRAM/SAM format
+
+      Structure: [ val(meta), path(reads) ]'
+  - name: ch_fasta
+    description: 'Reference genome fasta file required for CRAM input
+
+      Structure: [ path(fasta) ]'
+  - name: ch_fasta
+    description: 'Index of the reference genome fasta file
+
+      Structure: [ path(fai) ]'
+  meta_outputs:
+  - name: bam
+    description: 'processed BAM/SAM file
+
+      Structure: [ val(meta), path(bam) ]'
+  - name: bai
+    description: 'BAM/SAM samtools index
+
+      Structure: [ val(meta), path(bai) ]'
+  - name: cram
+    description: 'processed CRAM file
+
+      Structure: [ val(meta), path(cram) ]'
+  - name: crai
+    description: 'CRAM samtools index
+
+      Structure: [ val(meta), path(crai) ]'
+  - name: csi
+    description: 'CSI samtools index
+
+      Structure: [ val(meta), path(csi) ]'
+  - name: stats
+    description: 'File containing samtools stats output
+
+      Structure: [ val(meta), path(stats) ]'
+  - name: flagstat
+    description: 'File containing samtools flagstat output
+
+      Structure: [ val(meta), path(flagstat) ]'
+  - name: idxstats
+    description: 'File containing samtools idxstats output
+
+      Structure: [ val(meta), path(idxstats) ]'
+  - name: versions
+    description: 'Files containing software versions
+
+      Structure: [ path(versions.yml) ]'
+  meta_authors:
+  - '@dmarron'
+  - '@drpatelh'
+  meta_maintainers:
+  - '@dmarron'
+  - '@drpatelh'
+- name: BAM_SORT_STATS_SAMTOOLS
+  docstring: ''
+  file: subworkflows/nf-core/bam_sort_stats_samtools/main.nf
+  line: 9
+  end_line: 49
+  inputs:
+  - name: ch_bam
+    type: ''
+    description: ''
+  - name: ch_fasta
+    type: ''
+    description: ''
+  outputs:
+  - name: bam
+    type: ''
+    description: ''
+  - name: bai
+    type: ''
+    description: ''
+  - name: csi
+    type: ''
+    description: ''
+  - name: stats
+    type: ''
+    description: ''
+  - name: flagstat
+    type: ''
+    description: ''
+  - name: idxstats
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/nf-core/bam_sort_stats_samtools/main.nf#L9-L49
+  meta_description: Sort SAM/BAM/CRAM file
+  meta_keywords:
+  - sort
+  - bam
+  - sam
+  - cram
+  meta_components:
+  - samtools/sort
+  - samtools/index
+  - samtools/stats
+  - samtools/idxstats
+  - samtools/flagstat
+  - bam_stats_samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bam
+    type: file
+    description: BAM/CRAM/SAM file
+    pattern: '*.{bam,cram,sam}'
+  - name: fasta
+    type: file
+    description: Reference genome fasta file
+    pattern: '*.{fasta,fa}'
+  meta_outputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bam
+    type: file
+    description: Sorted BAM/CRAM/SAM file
+    pattern: '*.{bam,cram,sam}'
+  - name: bai
+    type: file
+    description: BAM/CRAM/SAM index file
+    pattern: '*.{bai,crai,sai}'
+  - name: crai
+    type: file
+    description: BAM/CRAM/SAM index file
+    pattern: '*.{bai,crai,sai}'
+  - name: stats
+    type: file
+    description: File containing samtools stats output
+    pattern: '*.{stats}'
+  - name: flagstat
+    type: file
+    description: File containing samtools flagstat output
+    pattern: '*.{flagstat}'
+  - name: idxstats
+    type: file
+    description: File containing samtools idxstats output
+    pattern: '*.{idxstats}'
+  - name: versions
+    type: file
+    description: File containing software versions
+    pattern: versions.yml
+  meta_authors:
+  - '@drpatelh'
+  - '@ewels'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@ewels'
+- name: PREPARE_ALIGNMENT
+  docstring: ''
+  file: subworkflows/local/prepare_alignment/main.nf
+  line: 7
+  end_line: 44
+  inputs:
+  - name: cram
+    type: ''
+    description: ''
+  - name: bam
+    type: ''
+    description: ''
+  outputs:
+  - name: bam
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/prepare_alignment/main.nf#L7-L44
+- name: SPLITNCIGAR
+  docstring: 'Split reads that contain N CIGAR operations for RNA-seq variant calling.
+
+    This subworkflow handles the GATK SplitNCigarReads step which is essential
+
+    for RNA-seq variant calling. It splits reads that span introns (N in CIGAR)
+
+    and reassigns mapping qualities to meet GATK requirements.
+
+    The workflow processes BAM files in parallel across genomic intervals,
+
+    then merges and indexes the results for efficient downstream processing.'
+  file: subworkflows/local/splitncigar/main.nf
+  line: 25
+  end_line: 85
+  inputs:
+  - name: bam
+    type: ''
+    description: ''
+  - name: fasta
+    type: ''
+    description: ''
+  - name: fai
+    type: ''
+    description: ''
+  - name: dict
+    type: ''
+    description: ''
+  - name: intervals
+    type: ''
+    description: ''
+  outputs:
+  - name: bam_bai
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/splitncigar/main.nf#L25-L85
+- name: RECALIBRATE
+  docstring: 'Apply base quality score recalibration (BQSR) to BAM files.
+
+    This subworkflow applies the BQSR model generated by GATK BaseRecalibrator
+
+    to adjust base quality scores in BAM files. Recalibrated quality scores
+
+    improve the accuracy of variant calling by correcting systematic errors
+
+    in the original quality scores assigned by the sequencing machine.
+
+    Optionally generates alignment statistics using samtools stats for QC.'
+  file: subworkflows/local/recalibrate/main.nf
+  line: 27
+  end_line: 67
+  inputs:
+  - name: skip_samtools
+    type: ''
+    description: ''
+  - name: bam
+    type: ''
+    description: ''
+  - name: dict
+    type: ''
+    description: ''
+  - name: fai
+    type: ''
+    description: ''
+  - name: fasta
+    type: ''
+    description: ''
+  outputs:
+  - name: bam
+    type: ''
+    description: ''
+  - name: qc
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/recalibrate/main.nf#L27-L67
+- name: DOWNLOAD_CACHE_SNPEFF_VEP
+  docstring: ''
+  file: subworkflows/local/download_cache_snpeff_vep/main.nf
+  line: 14
+  end_line: 26
+  inputs:
+  - name: ensemblvep_info
+    type: ''
+    description: ''
+  - name: snpeff_info
+    type: ''
+    description: ''
+  outputs:
+  - name: ensemblvep_cache
+    type: ''
+    description: ''
+  - name: snpeff_cache
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/download_cache_snpeff_vep/main.nf#L14-L26
+- name: PIPELINE_INITIALISATION
+  docstring: 'Initialize the nf-core/rnavar pipeline.
+
+    Performs all setup tasks required before running the main workflow:
+
+    - Display version information if requested
+
+    - Validate parameters against the schema
+
+    - Check Conda channel configuration
+
+    - Parse and validate the input samplesheet
+
+    - Generate parameter summary for logging'
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 51
+  end_line: 173
+  inputs:
+  - name: version
+    type: ''
+    description: ''
+  - name: validate_params
+    type: ''
+    description: ''
+  - name: nextflow_cli_args
+    type: ''
+    description: ''
+  - name: outdir
+    type: ''
+    description: ''
+  - name: input
+    type: ''
+    description: ''
+  - name: help
+    type: ''
+    description: ''
+  - name: help_full
+    type: ''
+    description: ''
+  - name: show_hidden
+    type: ''
+    description: ''
+  outputs:
+  - name: samplesheet
+    type: ''
+    description: ''
+  - name: align
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L51-L173
+- name: PIPELINE_COMPLETION
+  docstring: 'Handle pipeline completion tasks.
+
+    Executes cleanup and notification tasks when the pipeline finishes:
+
+    - Send completion email with run summary
+
+    - Generate completion summary to stdout
+
+    - Send notifications to messaging platforms (Slack, Teams, etc.)
+
+    - Log error messages for failed runs'
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 198
+  end_line: 237
+  inputs:
+  - name: email
+    type: ''
+    description: ''
+  - name: email_on_fail
+    type: ''
+    description: ''
+  - name: plaintext_email
+    type: ''
+    description: ''
+  - name: outdir
+    type: ''
+    description: ''
+  - name: monochrome_logs
+    type: ''
+    description: ''
+  - name: hook_url
+    type: ''
+    description: ''
+  - name: multiqc_report
+    type: ''
+    description: ''
+  outputs:
+  - name: <none>
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L198-L237
+- name: ANNOTATION_CACHE_INITIALISATION
+  docstring: ''
+  file: subworkflows/local/annotation_cache_initialisation/main.nf
+  line: 11
+  end_line: 67
+  inputs:
+  - name: snpeff_enabled
+    type: ''
+    description: ''
+  - name: snpeff_cache
+    type: ''
+    description: ''
+  - name: snpeff_db
+    type: ''
+    description: ''
+  - name: vep_enabled
+    type: ''
+    description: ''
+  - name: vep_cache
+    type: ''
+    description: ''
+  - name: vep_species
+    type: ''
+    description: ''
+  - name: vep_cache_version
+    type: ''
+    description: ''
+  - name: vep_genome
+    type: ''
+    description: ''
+  - name: vep_custom_args
+    type: ''
+    description: ''
+  - name: help_message
+    type: ''
+    description: ''
+  outputs:
+  - name: '?'
+    type: ''
+    description: ''
+  - name: '?'
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/annotation_cache_initialisation/main.nf#L11-L67
+- name: PREPARE_GENOME
+  docstring: ''
+  file: subworkflows/local/prepare_genome/main.nf
+  line: 22
+  end_line: 254
+  inputs:
+  - name: bcftools_annotations
+    type: ''
+    description: ''
+  - name: bcftools_annotations_tbi
+    type: ''
+    description: ''
+  - name: dbsnp
+    type: ''
+    description: ''
+  - name: dbsnp_tbi
+    type: ''
+    description: ''
+  - name: dict
+    type: ''
+    description: ''
+  - name: exon_bed
+    type: ''
+    description: ''
+  - name: fasta
+    type: ''
+    description: ''
+  - name: fasta_fai
+    type: ''
+    description: ''
+  - name: gff
+    type: ''
+    description: ''
+  - name: gtf
+    type: ''
+    description: ''
+  - name: known_indels
+    type: ''
+    description: ''
+  - name: known_indels_tbi
+    type: ''
+    description: ''
+  - name: star_index
+    type: ''
+    description: ''
+  - name: feature_type
+    type: ''
+    description: ''
+  - name: skip_exon_bed_check
+    type: ''
+    description: ''
+  - name: align
+    type: ''
+    description: ''
+  outputs:
+  - name: bcfann
+    type: ''
+    description: ''
+  - name: bcfann_tbi
+    type: ''
+    description: ''
+  - name: dbsnp
+    type: ''
+    description: ''
+  - name: dbsnp_tbi
+    type: ''
+    description: ''
+  - name: dict
+    type: ''
+    description: ''
+  - name: exon_bed
+    type: ''
+    description: ''
+  - name: fasta
+    type: ''
+    description: ''
+  - name: fasta_fai
+    type: ''
+    description: ''
+  - name: gtf
+    type: ''
+    description: ''
+  - name: known_indels
+    type: ''
+    description: ''
+  - name: known_indels_tbi
+    type: ''
+    description: ''
+  - name: known_sites
+    type: ''
+    description: ''
+  - name: known_sites_tbi
+    type: ''
+    description: ''
+  - name: star_index
+    type: ''
+    description: ''
+  - name: versions
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/prepare_genome/main.nf#L22-L254
+- name: VCF_ANNOTATE_ALL
+  docstring: 'Annotate variants using multiple annotation tools.
+
+    This subworkflow provides flexible variant annotation using one or more tools:
+
+    - **SnpEff**: Functional annotation and effect prediction
+
+    - **VEP (Ensembl Variant Effect Predictor)**: Comprehensive variant annotation
+
+    - **BCFtools annotate**: Add custom annotations from external files
+
+    - **Merge**: Combined SnpEff + VEP annotation
+
+    The tools to use are specified via the `tools` parameter as a
+
+    comma-separated list (e.g., "snpeff,vep" or "merge").'
+  file: subworkflows/local/vcf_annotate_all/main.nf
+  line: 37
+  end_line: 102
+  inputs:
+  - name: vcf
+    type: ''
+    description: ''
+  - name: fasta
+    type: ''
+    description: ''
+  - name: tools
+    type: ''
+    description: ''
+  - name: snpeff_db
+    type: ''
+    description: ''
+  - name: snpeff_cache
+    type: ''
+    description: ''
+  - name: vep_genome
+    type: ''
+    description: ''
+  - name: vep_species
+    type: ''
+    description: ''
+  - name: vep_cache_version
+    type: ''
+    description: ''
+  - name: vep_cache
+    type: ''
+    description: ''
+  - name: vep_extra_files
+    type: ''
+    description: ''
+  - name: bcftools_annotations
+    type: ''
+    description: ''
+  - name: bcftools_annotations_index
+    type: ''
+    description: ''
+  - name: bcftools_columns
+    type: ''
+    description: ''
+  - name: bcftools_header_lines
+    type: ''
+    description: ''
+  outputs:
+  - name: '?'
+    type: ''
+    description: ''
+  - name: '?'
+    type: ''
+    description: ''
+  - name: '?'
+    type: ''
+    description: ''
+  - name: '?'
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/vcf_annotate_all/main.nf#L37-L102
+processes:
+- name: MULTIQC
+  docstring: 'Aggregate results from multiple analysis tools into a single report.
+
+    MultiQC searches a given directory for analysis logs and compiles them
+
+    into a single HTML report. It supports output from many common
+
+    bioinformatics tools including FastQC, STAR, Picard, GATK, and more.
+
+    The report provides:
+
+    - Summary statistics across all samples
+
+    - Interactive plots for QC metrics
+
+    - Data tables for detailed metrics
+
+    - Export functionality for plots and data'
+  file: modules/nf-core/multiqc/main.nf
+  line: 21
+  end_line: 75
+  inputs: []
+  outputs:
+  - name: '*.html'
+    type: path
+    description: ''
+    emit: report
+  - name: '*_data'
+    type: path
+    description: ''
+    emit: data
+  - name: '*_plots'
+    type: path
+    description: ''
+    emit: plots
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/multiqc/main.nf#L21-L75
+  nfcore_module_url: https://nf-co.re/modules/multiqc/
+  meta_description: Aggregate results from bioinformatics analyses across many samples into a single report
+  meta_keywords:
+  - QC
+  - bioinformatics tools
+  - Beautiful stand-alone HTML report
+  meta_tools:
+  - name: multiqc
+    description: 'MultiQC searches a given directory for analysis logs and compiles a HTML report.
+
+      It''s a general use tool, perfect for summarising the output from numerous bioinformatics tools.'
+    homepage: https://multiqc.info/
+    documentation: https://multiqc.info/docs/
+    licence:
+    - GPL-3.0-or-later
+    identifier: biotools:multiqc
+  meta_outputs:
+  - name: report
+  - name: data
+  - name: plots
+  meta_authors:
+  - '@abhi18av'
+  - '@bunop'
+  - '@drpatelh'
+  - '@jfy133'
+  meta_maintainers:
+  - '@abhi18av'
+  - '@bunop'
+  - '@drpatelh'
+  - '@jfy133'
+- name: UNTAR
+  docstring: ''
+  file: modules/nf-core/untar/main.nf
+  line: 1
+  end_line: 84
+  inputs:
+  - name: val(meta), path(archive)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/untar/main.nf#L1-L84
+  nfcore_module_url: https://nf-co.re/modules/untar/
+  meta_description: Extract files from tar, tar.gz, tar.bz2, tar.xz archives
+  meta_keywords:
+  - untar
+  - uncompress
+  - extract
+  meta_tools:
+  - name: untar
+    description: Extract tar, tar.gz, tar.bz2, tar.xz files.
+    documentation: https://www.gnu.org/software/tar/manual/
+    licence:
+    - GPL-3.0-or-later
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: archive
+    type: file
+    description: File to be untarred
+    pattern: '*.{tar,tar.gz,tar.bz2,tar.xz}'
+    ontologies:
+    - http://edamontology.org/format_3981
+    - http://edamontology.org/format_3989
+  meta_outputs:
+  - name: untar
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+    pattern: '*/'
+  meta_authors:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@matthdsm'
+  - '@jfy133'
+  meta_maintainers:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@matthdsm'
+  - '@jfy133'
+- name: MOSDEPTH
+  docstring: ''
+  file: modules/nf-core/mosdepth/main.nf
+  line: 1
+  end_line: 77
+  inputs:
+  - name: val(meta), path(bam), path(bai), path(bed)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.global.dist.txt')
+    type: tuple
+    description: ''
+    emit: global_txt
+  - name: val(meta), path('*.summary.txt')
+    type: tuple
+    description: ''
+    emit: summary_txt
+  - name: val(meta), path('*.region.dist.txt')
+    type: tuple
+    description: ''
+    emit: regions_txt
+  - name: val(meta), path('*.per-base.d4')
+    type: tuple
+    description: ''
+    emit: per_base_d4
+  - name: val(meta), path('*.per-base.bed.gz')
+    type: tuple
+    description: ''
+    emit: per_base_bed
+  - name: val(meta), path('*.per-base.bed.gz.csi')
+    type: tuple
+    description: ''
+    emit: per_base_csi
+  - name: val(meta), path('*.regions.bed.gz')
+    type: tuple
+    description: ''
+    emit: regions_bed
+  - name: val(meta), path('*.regions.bed.gz.csi')
+    type: tuple
+    description: ''
+    emit: regions_csi
+  - name: val(meta), path('*.quantized.bed.gz')
+    type: tuple
+    description: ''
+    emit: quantized_bed
+  - name: val(meta), path('*.quantized.bed.gz.csi')
+    type: tuple
+    description: ''
+    emit: quantized_csi
+  - name: val(meta), path('*.thresholds.bed.gz')
+    type: tuple
+    description: ''
+    emit: thresholds_bed
+  - name: val(meta), path('*.thresholds.bed.gz.csi')
+    type: tuple
+    description: ''
+    emit: thresholds_csi
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/mosdepth/main.nf#L1-L77
+  nfcore_module_url: https://nf-co.re/modules/mosdepth/
+  meta_description: Calculates genome-wide sequencing coverage.
+  meta_keywords:
+  - mosdepth
+  - bam
+  - cram
+  - coverage
+  meta_tools:
+  - name: mosdepth
+    description: Fast BAM/CRAM depth calculation for WGS, exome, or targeted sequencing.
+    documentation: https://github.com/brentp/mosdepth
+    doi: 10.1093/bioinformatics/btx699
+    licence:
+    - MIT
+    identifier: biotools:mosdepth
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bam
+    type: file
+    description: Input BAM/CRAM file
+    pattern: '*.{bam,cram}'
+  - name: bai
+    type: file
+    description: Index for BAM/CRAM file
+    pattern: '*.{bai,crai}'
+  - name: bed
+    type: file
+    description: BED file with intersected intervals
+    pattern: '*.{bed}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing bed information
+
+      e.g. [ id:''test'' ]'
+  - name: fasta
+    type: file
+    description: Reference genome FASTA file
+    pattern: '*.{fa,fasta}'
+  meta_outputs:
+  - name: global_txt
+    type: file
+    description: Text file with global cumulative coverage distribution
+    pattern: '*.{global.dist.txt}'
+  - name: summary_txt
+    type: file
+    description: Text file with summary mean depths per chromosome and regions
+    pattern: '*.{summary.txt}'
+  - name: regions_txt
+    type: file
+    description: Text file with region cumulative coverage distribution
+    pattern: '*.{region.dist.txt}'
+  - name: per_base_d4
+    type: file
+    description: D4 file with per-base coverage
+    pattern: '*.{per-base.d4}'
+  - name: per_base_bed
+    type: file
+    description: BED file with per-base coverage
+    pattern: '*.{per-base.bed.gz}'
+  - name: per_base_csi
+    type: file
+    description: Index file for BED file with per-base coverage
+    pattern: '*.{per-base.bed.gz.csi}'
+  - name: regions_bed
+    type: file
+    description: BED file with per-region coverage
+    pattern: '*.{regions.bed.gz}'
+  - name: regions_csi
+    type: file
+    description: Index file for BED file with per-region coverage
+    pattern: '*.{regions.bed.gz.csi}'
+  - name: quantized_bed
+    type: file
+    description: BED file with binned coverage
+    pattern: '*.{quantized.bed.gz}'
+  - name: quantized_csi
+    type: file
+    description: Index file for BED file with binned coverage
+    pattern: '*.{quantized.bed.gz.csi}'
+  - name: thresholds_bed
+    type: file
+    description: BED file with the number of bases in each region that are covered at or above each threshold
+    pattern: '*.{thresholds.bed.gz}'
+  - name: thresholds_csi
+    type: file
+    description: Index file for BED file with threshold coverage
+    pattern: '*.{thresholds.bed.gz.csi}'
+  meta_authors:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@ramprasadn'
+  - '@matthdsm'
+  meta_maintainers:
+  - '@joseespinosa'
+  - '@ramprasadn'
+  - '@matthdsm'
+- name: SEQ2HLA
+  docstring: 'Perform HLA typing from RNA-seq data using seq2HLA.
+
+    seq2HLA determines HLA class I and class II genotypes from RNA-seq reads
+
+    by mapping to a reference database of HLA alleles. It provides:
+
+    - 2-digit resolution typing (e.g., HLA-A*02)
+
+    - 4-digit resolution typing (e.g., HLA-A*02:01)
+
+    - Expression levels of HLA alleles
+
+    - Ambiguity reports when alleles cannot be distinguished
+
+    Supports both classical HLA genes (HLA-A, -B, -C, -DRB1, -DQB1, -DQA1)
+
+    and non-classical genes.
+
+    Requires paired-end RNA-seq reads as input.'
+  file: modules/nf-core/seq2hla/main.nf
+  line: 20
+  end_line: 94
+  inputs:
+  - name: val(meta), path(reads)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*ClassI-class.bowtielog")
+    type: tuple
+    description: ''
+    emit: class1_bowtielog
+  - name: val(meta), path("*ClassI-class.expression")
+    type: tuple
+    description: ''
+    emit: class1_expression
+  - name: val(meta), path("*ClassI-class.HLAgenotype2digits")
+    type: tuple
+    description: ''
+    emit: class1_genotype_2d
+  - name: val(meta), path("*ClassI-class.HLAgenotype4digits")
+    type: tuple
+    description: ''
+    emit: class1_genotype_4d
+  - name: val(meta), path("*ClassI-nonclass.bowtielog")
+    type: tuple
+    description: ''
+    emit: class1_nonclass_bowtielog
+  - name: val(meta), path("*ClassI-nonclass.expression")
+    type: tuple
+    description: ''
+    emit: class1_nonclass_expression
+  - name: val(meta), path("*ClassI-nonclass.HLAgenotype2digits")
+    type: tuple
+    description: ''
+    emit: class1_nonclass_genotype_2d
+  - name: val(meta), path("*ClassI-nonclass.HLAgenotype4digits")
+    type: tuple
+    description: ''
+    emit: class1_nonclass_genotype_4d
+  - name: val(meta), path("*ClassII.bowtielog")
+    type: tuple
+    description: ''
+    emit: class2_bowtielog
+  - name: val(meta), path("*ClassII.expression")
+    type: tuple
+    description: ''
+    emit: class2_expression
+  - name: val(meta), path("*ClassII.HLAgenotype2digits")
+    type: tuple
+    description: ''
+    emit: class2_genotype_2d
+  - name: val(meta), path("*ClassII.HLAgenotype4digits")
+    type: tuple
+    description: ''
+    emit: class2_genotype_4d
+  - name: val(meta), path("*.ambiguity")
+    type: tuple
+    description: ''
+    emit: ambiguity
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/seq2hla/main.nf#L20-L94
+  nfcore_module_url: https://nf-co.re/modules/seq2hla/
+  meta_description: Precision HLA typing and expression from RNA-seq data using seq2HLA
+  meta_keywords:
+  - hla
+  - typing
+  - rna-seq
+  - genomics
+  - immunogenetics
+  meta_tools:
+  - name: seq2hla
+    description: Precision HLA typing and expression from next-generation RNA sequencing data
+    homepage: https://github.com/TRON-Bioinformatics/seq2HLA
+    documentation: https://github.com/TRON-Bioinformatics/seq2HLA#readme
+    tool_dev_url: https://github.com/TRON-Bioinformatics/seq2HLA
+    doi: 10.1186/s13073-015-0240-5
+    licence:
+    - MIT
+    identifier: biotools:seq2HLA
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. `[ id:''sample1'', single_end:false ]`'
+  - name: reads
+    type: file
+    description: Paired-end FASTQ files for RNA-seq data
+    pattern: '*.{fastq.gz,fq.gz}'
+    ontologies:
+    - http://edamontology.org/format_1930
+  meta_outputs:
+  - name: class1_genotype_2d
+    type: file
+    description: HLA Class I 2-digit genotype results
+    pattern: '*ClassI-class.HLAgenotype2digits'
+  - name: class2_genotype_2d
+    type: file
+    description: HLA Class II 2-digit genotype results
+    pattern: '*ClassII.HLAgenotype2digits'
+  - name: class1_genotype_4d
+    type: file
+    description: HLA Class I 4-digit genotype results
+    pattern: '*ClassI-class.HLAgenotype4digits'
+  - name: class2_genotype_4d
+    type: file
+    description: HLA Class II 4-digit genotype results
+    pattern: '*ClassII.HLAgenotype4digits'
+  - name: class1_bowtielog
+    type: file
+    description: HLA Class I Bowtie alignment log
+    pattern: '*ClassI-class.bowtielog'
+  - name: class2_bowtielog
+    type: file
+    description: HLA Class II Bowtie alignment log
+    pattern: '*ClassII.bowtielog'
+  - name: class1_expression
+    type: file
+    description: HLA Class I expression results
+    pattern: '*ClassI-class.expression'
+  - name: class2_expression
+    type: file
+    description: HLA Class II expression results
+    pattern: '*ClassII.expression'
+  - name: class1_nonclass_genotype_2d
+    type: file
+    description: HLA Class I non-classical 2-digit genotype results
+    pattern: '*ClassI-nonclass.HLAgenotype2digits'
+  - name: ambiguity
+    type: file
+    description: HLA typing ambiguity results
+    pattern: '*.ambiguity'
+  - name: class1_nonclass_genotype_4d
+    type: file
+    description: HLA Class I non-classical 4-digit genotype results
+    pattern: '*ClassI-nonclass.HLAgenotype4digits'
+  - name: class1_nonclass_bowtielog
+    type: file
+    description: HLA Class I non-classical Bowtie alignment log
+    pattern: '*ClassI-nonclass.bowtielog'
+  - name: class1_nonclass_expression
+    type: file
+    description: HLA Class I non-classical expression results
+    pattern: '*ClassI-nonclass.expression'
+  meta_authors:
+  - '@FriederikeHanssen'
+  meta_maintainers:
+  - '@FriederikeHanssen'
+- name: FASTQC
+  docstring: 'Run FastQC quality control on sequencing reads.
+
+    FastQC provides a comprehensive quality control report for high-throughput
+
+    sequencing data. It generates an HTML report and a ZIP archive containing
+
+    detailed metrics including:
+
+    - Basic statistics (total sequences, sequence length, GC content)
+
+    - Per-base sequence quality scores
+
+    - Per-sequence quality scores
+
+    - Per-base sequence content
+
+    - Sequence duplication levels
+
+    - Overrepresented sequences
+
+    - Adapter content'
+  file: modules/nf-core/fastqc/main.nf
+  line: 19
+  end_line: 72
+  inputs:
+  - name: val(meta), path(reads)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.html")
+    type: tuple
+    description: ''
+    emit: html
+  - name: val(meta), path("*.zip")
+    type: tuple
+    description: ''
+    emit: zip
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/fastqc/main.nf#L19-L72
+  nfcore_module_url: https://nf-co.re/modules/fastqc/
+  meta_description: Run FastQC on sequenced reads
+  meta_keywords:
+  - quality control
+  - qc
+  - adapters
+  - fastq
+  meta_tools:
+  - name: fastqc
+    description: 'FastQC gives general quality metrics about your reads.
+
+      It provides information about the quality score distribution
+
+      across your reads, the per base sequence content (%A/C/G/T).
+
+
+      You get information about adapter contamination and other
+
+      overrepresented sequences.'
+    homepage: https://www.bioinformatics.babraham.ac.uk/projects/fastqc/
+    documentation: https://www.bioinformatics.babraham.ac.uk/projects/fastqc/Help/
+    licence:
+    - GPL-2.0-only
+    identifier: biotools:fastqc
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: reads
+    type: file
+    description: 'List of input FastQ files of size 1 and 2 for single-end and paired-end data,
+
+      respectively.'
+  meta_outputs:
+  - name: html
+    type: file
+    description: FastQC report
+    pattern: '*_{fastqc.html}'
+  - name: zip
+    type: file
+    description: FastQC report archive
+    pattern: '*_{fastqc.zip}'
+  meta_authors:
+  - '@drpatelh'
+  - '@grst'
+  - '@ewels'
+  - '@FelixKrueger'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@grst'
+  - '@ewels'
+  - '@FelixKrueger'
+- name: GFFREAD
+  docstring: ''
+  file: modules/nf-core/gffread/main.nf
+  line: 1
+  end_line: 60
+  inputs:
+  - name: val(meta), path(gff)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.gtf")
+    type: tuple
+    description: ''
+    emit: gtf
+  - name: val(meta), path("*.gff3")
+    type: tuple
+    description: ''
+    emit: gffread_gff
+  - name: val(meta), path("*.fasta")
+    type: tuple
+    description: ''
+    emit: gffread_fasta
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gffread/main.nf#L1-L60
+  nfcore_module_url: https://nf-co.re/modules/gffread/
+  meta_description: Validate, filter, convert and perform various other operations on GFF files
+  meta_keywords:
+  - gff
+  - conversion
+  - validation
+  meta_tools:
+  - name: gffread
+    description: GFF/GTF utility providing format conversions, region filtering, FASTA sequence extraction
+      and more.
+    homepage: http://ccb.jhu.edu/software/stringtie/gff.shtml#gffread
+    documentation: http://ccb.jhu.edu/software/stringtie/gff.shtml#gffread
+    tool_dev_url: https://github.com/gpertea/gffread
+    doi: 10.12688/f1000research.23297.1
+    licence:
+    - MIT
+    identifier: biotools:gffread
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing meta data
+
+      e.g. [ id:''test'' ]'
+  - name: gff
+    type: file
+    description: A reference file in either the GFF3, GFF2 or GTF format.
+    pattern: '*.{gff, gtf}'
+  meta_outputs:
+  - name: gtf
+    type: file
+    description: GTF file resulting from the conversion of the GFF input file if '-T' argument is present
+    pattern: '*.{gtf}'
+  - name: gffread_gff
+    type: file
+    description: GFF3 file resulting from the conversion of the GFF input file if '-T' argument is absent
+    pattern: '*.gff3'
+  - name: gffread_fasta
+    type: file
+    description: Fasta file produced when either of '-w', '-x', '-y' parameters is present
+    pattern: '*.fasta'
+  meta_authors:
+  - '@edmundmiller'
+  meta_maintainers:
+  - '@edmundmiller'
+  - '@gallvp'
+- name: GUNZIP
+  docstring: ''
+  file: modules/nf-core/gunzip/main.nf
+  line: 16
+  end_line: 70
+  inputs:
+  - name: val(meta), path(archive)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gunzip/main.nf#L16-L70
+  nfcore_module_url: https://nf-co.re/modules/gunzip/
+  meta_description: Compresses and decompresses files.
+  meta_keywords:
+  - gunzip
+  - compression
+  - decompression
+  meta_tools:
+  - name: gunzip
+    description: gzip is a file format and a software application used for file compression and decompression.
+    documentation: https://www.gnu.org/software/gzip/manual/gzip.html
+    licence:
+    - GPL-3.0-or-later
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Optional groovy Map containing meta information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: archive
+    type: file
+    description: File to be compressed/uncompressed
+    pattern: '*.*'
+  meta_outputs:
+  - name: gunzip
+    type: file
+    description: Compressed/uncompressed file
+    pattern: '*.*'
+  meta_authors:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@jfy133'
+  meta_maintainers:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@jfy133'
+  - '@gallvp'
+- name: GATK4_COMBINEGVCFS
+  docstring: ''
+  file: modules/nf-core/gatk4/combinegvcfs/main.nf
+  line: 1
+  end_line: 60
+  inputs:
+  - name: val(meta), path(vcf), path(vcf_idx)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.combined.g.vcf.gz")
+    type: tuple
+    description: ''
+    emit: combined_gvcf
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/combinegvcfs/main.nf#L1-L60
+  nfcore_module_url: https://nf-co.re/modules/gatk4_combinegvcfs/
+  meta_description: Combine per-sample gVCF files produced by HaplotypeCaller into a multi-sample gVCF
+    file
+  meta_keywords:
+  - gvcf
+  - gatk4
+  - vcf
+  - combinegvcfs
+  - short variant discovery
+  meta_tools:
+  - name: gatk4
+    description: Genome Analysis Toolkit (GATK4). Developed in the Data Sciences Platform at the Broad
+      Institute, the toolkit offers a wide variety of tools with a primary focus on variant discovery
+      and genotyping. Its powerful processing engine and high-performance computing features make it capable
+      of taking on projects of any size.
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/articles/360037593911-CombineGVCFs
+    tool_dev_url: https://github.com/broadinstitute/gatk
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'' ]'
+  - name: vcf
+    type: file
+    description: Compressed VCF files
+    pattern: '*.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: vcf_idx
+    type: file
+    description: VCF Index file
+    pattern: '*.vcf.gz.idx'
+  meta_outputs:
+  - name: combined_gvcf
+    type: file
+    description: Compressed Combined GVCF file
+    pattern: '*.combined.g.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  meta_authors:
+  - '@sateeshperi'
+  - '@mjcipriano'
+  - '@hseabolt'
+  - '@maxulysse'
+  meta_maintainers:
+  - '@sateeshperi'
+  - '@mjcipriano'
+  - '@hseabolt'
+  - '@maxulysse'
+- name: GATK4_INDEXFEATUREFILE
+  docstring: ''
+  file: modules/nf-core/gatk4/indexfeaturefile/main.nf
+  line: 1
+  end_line: 42
+  inputs:
+  - name: val(meta), path(feature_file)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/indexfeaturefile/main.nf#L1-L42
+  nfcore_module_url: https://nf-co.re/modules/gatk4_indexfeaturefile/
+  meta_description: Creates an index for a feature file, e.g. VCF or BED file.
+  meta_keywords:
+  - feature
+  - gatk4
+  - index
+  - indexfeaturefile
+  meta_tools:
+  - name: gatk4
+    description: Genome Analysis Toolkit (GATK4)
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    tool_dev_url: https://github.com/broadinstitute/gatk
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - BSD-3-clause
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: feature_file
+    type: file
+    description: VCF/BED file
+    pattern: '*.{vcf,vcf.gz,bed,bed.gz}'
+  meta_outputs:
+  - name: index
+    type: file
+    description: Index for VCF/BED file
+    pattern: '*.{tbi,idx}'
+  meta_authors:
+  - '@santiagorevale'
+  meta_maintainers:
+  - '@santiagorevale'
+- name: GATK4_VARIANTFILTRATION
+  docstring: ''
+  file: modules/nf-core/gatk4/variantfiltration/main.nf
+  line: 1
+  end_line: 74
+  inputs:
+  - name: val(meta), path(vcf), path(tbi)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta4), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta5), path(gzi)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.vcf.gz")
+    type: tuple
+    description: ''
+    emit: vcf
+  - name: val(meta), path("*.tbi")
+    type: tuple
+    description: ''
+    emit: tbi
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/variantfiltration/main.nf#L1-L74
+  nfcore_module_url: https://nf-co.re/modules/gatk4_variantfiltration/
+  meta_description: Filter variants
+  meta_keywords:
+  - filter
+  - gatk4
+  - variantfiltration
+  - vcf
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'']'
+  - name: vcf
+    type: list
+    description: List of VCF(.gz) files
+    pattern: '*.{vcf,vcf.gz}'
+  - name: tbi
+    type: list
+    description: List of VCF file indexes
+    pattern: '*.{tbi}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fasta
+    type: file
+    description: Fasta file of reference genome
+    pattern: '*.fasta'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fai
+    type: file
+    description: Index of fasta file
+    pattern: '*.fasta.fai'
+  - name: meta4
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: dict
+    type: file
+    description: Sequence dictionary of fastea file
+    pattern: '*.dict'
+  - name: meta5
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: gzi
+    type: file
+    description: Genome index file only needed when the genome file was compressed with the BGZF algorithm.
+    pattern: '*.gzi'
+  meta_outputs:
+  - name: vcf
+    type: file
+    description: Compressed VCF file
+    pattern: '*.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: tbi
+    type: file
+    description: Index of VCF file
+    pattern: '*.vcf.gz.tbi'
+  meta_authors:
+  - '@kevinmenden'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@kevinmenden'
+  - '@ramprasadn'
+- name: GATK4_CREATESEQUENCEDICTIONARY
+  docstring: ''
+  file: modules/nf-core/gatk4/createsequencedictionary/main.nf
+  line: 1
+  end_line: 53
+  inputs:
+  - name: val(meta), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.dict')
+    type: tuple
+    description: ''
+    emit: dict
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/createsequencedictionary/main.nf#L1-L53
+  nfcore_module_url: https://nf-co.re/modules/gatk4_createsequencedictionary/
+  meta_description: Creates a sequence dictionary for a reference sequence
+  meta_keywords:
+  - createsequencedictionary
+  - dictionary
+  - fasta
+  - gatk4
+  meta_tools:
+  - name: gatk
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fasta
+    type: file
+    description: Input fasta file
+    pattern: '*.{fasta,fa}'
+  meta_outputs:
+  - name: dict
+    type: file
+    description: gatk dictionary file
+    pattern: '*.{dict}'
+  meta_authors:
+  - '@maxulysse'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@maxulysse'
+  - '@ramprasadn'
+- name: GATK4_SPLITNCIGARREADS
+  docstring: ''
+  file: modules/nf-core/gatk4/splitncigarreads/main.nf
+  line: 1
+  end_line: 62
+  inputs:
+  - name: val(meta), path(bam), path(bai), path(intervals)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta4), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.bam')
+    type: tuple
+    description: ''
+    emit: bam
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/splitncigarreads/main.nf#L1-L62
+  nfcore_module_url: https://nf-co.re/modules/gatk4_splitncigarreads/
+  meta_description: Splits reads that contain Ns in their cigar string
+  meta_keywords:
+  - gatk4
+  - merge
+  - vcf
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'']'
+  - name: bam
+    type: list
+    description: BAM/SAM/CRAM file containing reads
+    pattern: '*.{bam,sam,cram}'
+  - name: bai
+    type: list
+    description: BAI/SAI/CRAI index file (optional)
+    pattern: '*.{bai,sai,crai}'
+  - name: intervals
+    type: file
+    description: Bed file with the genomic regions included in the library (optional)
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''reference'' ]'
+  - name: fasta
+    type: file
+    description: The reference fasta file
+    pattern: '*.fasta'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''reference'' ]'
+  - name: fai
+    type: file
+    description: Index of reference fasta file
+    pattern: '*.fasta.fai'
+  - name: meta4
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''reference'' ]'
+  - name: dict
+    type: file
+    description: GATK sequence dictionary
+    pattern: '*.dict'
+  meta_outputs:
+  - name: bam
+    type: file
+    description: Output file with split reads (BAM/SAM/CRAM)
+    pattern: '*.{bam,sam,cram}'
+  meta_authors:
+  - '@kevinmenden'
+  meta_maintainers:
+  - '@kevinmenden'
+- name: GATK4_HAPLOTYPECALLER
+  docstring: 'Call germline SNPs and indels using GATK HaplotypeCaller.
+
+    HaplotypeCaller is GATK''s flagship variant caller, performing local
+
+    de-novo assembly of haplotypes in regions showing variation. It can
+
+    produce either standard VCF output or GVCF output for joint calling.
+
+    Key features:
+
+    - Local re-assembly for accurate indel calling
+
+    - Population-aware calling using dbSNP
+
+    - Support for GVCF output mode for cohort analysis
+
+    - DRAGstr model support for improved STR calling
+
+    For RNA-seq data, this should be run after SplitNCigarReads processing.'
+  file: modules/nf-core/gatk4/haplotypecaller/main.nf
+  line: 25
+  end_line: 102
+  inputs:
+  - name: val(meta), path(input), path(input_index), path(intervals), path(dragstr_model)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta4), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta5), path(dbsnp)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta6), path(dbsnp_tbi)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.vcf.gz")
+    type: tuple
+    description: ''
+    emit: vcf
+  - name: val(meta), path("*.tbi")
+    type: tuple
+    description: ''
+    emit: tbi
+  - name: val(meta), path("*.realigned.bam")
+    type: tuple
+    description: ''
+    emit: bam
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/haplotypecaller/main.nf#L25-L102
+  nfcore_module_url: https://nf-co.re/modules/gatk4_haplotypecaller/
+  meta_description: Call germline SNPs and indels via local re-assembly of haplotypes
+  meta_keywords:
+  - gatk4
+  - haplotype
+  - haplotypecaller
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: BAM/CRAM file from alignment
+    pattern: '*.{bam,cram}'
+  - name: input_index
+    type: file
+    description: BAI/CRAI file from alignment
+    pattern: '*.{bai,crai}'
+  - name: intervals
+    type: file
+    description: Bed file with the genomic regions included in the library (optional)
+  - name: dragstr_model
+    type: file
+    description: Text file containing the DragSTR model of the used BAM/CRAM file (optional)
+    pattern: '*.txt'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test_reference'' ]'
+  - name: fasta
+    type: file
+    description: The reference fasta file
+    pattern: '*.fasta'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test_reference'' ]'
+  - name: fai
+    type: file
+    description: Index of reference fasta file
+    pattern: fasta.fai
+  - name: meta4
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test_reference'' ]'
+  - name: dict
+    type: file
+    description: GATK sequence dictionary
+    pattern: '*.dict'
+  - name: meta5
+    type: map
+    description: 'Groovy Map containing dbsnp information
+
+      e.g. [ id:''test_dbsnp'' ]'
+  - name: dbsnp
+    type: file
+    description: VCF file containing known sites (optional)
+  - name: meta6
+    type: map
+    description: 'Groovy Map containing dbsnp information
+
+      e.g. [ id:''test_dbsnp'' ]'
+  - name: dbsnp_tbi
+    type: file
+    description: VCF index of dbsnp (optional)
+  meta_outputs:
+  - name: vcf
+    type: file
+    description: Compressed VCF file
+    pattern: '*.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: tbi
+    type: file
+    description: Index of VCF file
+    pattern: '*.vcf.gz.tbi'
+  - name: bam
+    type: file
+    description: Assembled haplotypes and locally realigned reads
+    pattern: '*.realigned.bam'
+  meta_authors:
+  - '@suzannejin'
+  - '@FriederikeHanssen'
+  meta_maintainers:
+  - '@suzannejin'
+  - '@FriederikeHanssen'
+- name: GATK4_INTERVALLISTTOOLS
+  docstring: ''
+  file: modules/nf-core/gatk4/intervallisttools/main.nf
+  line: 1
+  end_line: 75
+  inputs:
+  - name: val(meta), path(intervals)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*_split/*/*.interval_list")
+    type: tuple
+    description: ''
+    emit: interval_list
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/intervallisttools/main.nf#L1-L75
+  nfcore_module_url: https://nf-co.re/modules/gatk4_intervallisttools/
+  meta_description: Splits the interval list file into unique, equally-sized interval files and place
+    it under a directory
+  meta_keywords:
+  - bed
+  - gatk4
+  - interval_list
+  - sort
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: intervals
+    type: file
+    description: Interval file
+  meta_outputs:
+  - name: interval_list
+    type: file
+    description: Interval list files
+    pattern: '*.interval_list'
+  meta_authors:
+  - '@praveenraj2018'
+  meta_maintainers:
+  - '@praveenraj2018'
+- name: GATK4_BASERECALIBRATOR
+  docstring: ''
+  file: modules/nf-core/gatk4/baserecalibrator/main.nf
+  line: 1
+  end_line: 64
+  inputs:
+  - name: val(meta), path(input), path(input_index), path(intervals)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta4), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta5), path(known_sites)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta6), path(known_sites_tbi)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.table")
+    type: tuple
+    description: ''
+    emit: table
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/baserecalibrator/main.nf#L1-L64
+  nfcore_module_url: https://nf-co.re/modules/gatk4_baserecalibrator/
+  meta_description: Generate recalibration table for Base Quality Score Recalibration (BQSR)
+  meta_keywords:
+  - base quality score recalibration
+  - table
+  - bqsr
+  - gatk4
+  - sort
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: BAM/CRAM file from alignment
+    pattern: '*.{bam,cram}'
+  - name: input_index
+    type: file
+    description: BAI/CRAI file from alignment
+    pattern: '*.{bai,crai}'
+  - name: intervals
+    type: file
+    description: Bed file with the genomic regions included in the library (optional)
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'']'
+  - name: fasta
+    type: file
+    description: The reference fasta file
+    pattern: '*.fasta'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'']'
+  - name: fai
+    type: file
+    description: Index of reference fasta file
+    pattern: '*.fasta.fai'
+  - name: meta4
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'']'
+  - name: dict
+    type: file
+    description: GATK sequence dictionary
+    pattern: '*.dict'
+  - name: meta5
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'']'
+  - name: known_sites
+    type: file
+    description: VCF files with known sites for indels / snps
+    pattern: '*.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: meta6
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'']'
+  - name: known_sites_tbi
+    type: file
+    description: Tabix index of the known_sites
+    pattern: '*.vcf.gz.tbi'
+  meta_outputs:
+  - name: table
+    type: file
+    description: Recalibration table from BaseRecalibrator
+    pattern: '*.{table}'
+  meta_authors:
+  - '@yocra3'
+  - '@FriederikeHanssen'
+  - '@maxulysse'
+  meta_maintainers:
+  - '@yocra3'
+  - '@FriederikeHanssen'
+  - '@maxulysse'
+- name: GATK4_APPLYBQSR
+  docstring: ''
+  file: modules/nf-core/gatk4/applybqsr/main.nf
+  line: 1
+  end_line: 72
+  inputs:
+  - name: val(meta), path(input), path(input_index), path(bqsr_table), path(intervals)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/applybqsr/main.nf#L1-L72
+  nfcore_module_url: https://nf-co.re/modules/gatk4_applybqsr/
+  meta_description: Apply base quality score recalibration (BQSR) to a bam file
+  meta_keywords:
+  - bam
+  - base quality score recalibration
+  - bqsr
+  - cram
+  - gatk4
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: BAM/CRAM file from alignment
+    pattern: '*.{bam,cram}'
+  - name: input_index
+    type: file
+    description: BAI/CRAI file from alignment
+    pattern: '*.{bai,crai}'
+  - name: bqsr_table
+    type: file
+    description: Recalibration table from gatk4_baserecalibrator
+  - name: intervals
+    type: file
+    description: Bed file with the genomic regions included in the library (optional)
+  meta_outputs:
+  - name: bam
+    type: file
+    description: Recalibrated BAM file
+    pattern: ${prefix}.bam
+  - name: bai
+    type: file
+    description: Recalibrated BAM index file
+    pattern: ${prefix}*bai
+  - name: cram
+    type: file
+    description: Recalibrated CRAM file
+    pattern: ${prefix}.cram
+  meta_authors:
+  - '@yocra3'
+  - '@FriederikeHanssen'
+  meta_maintainers:
+  - '@yocra3'
+  - '@FriederikeHanssen'
+- name: GATK4_BEDTOINTERVALLIST
+  docstring: ''
+  file: modules/nf-core/gatk4/bedtointervallist/main.nf
+  line: 1
+  end_line: 57
+  inputs:
+  - name: val(meta), path(bed)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.interval_list')
+    type: tuple
+    description: ''
+    emit: interval_list
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/bedtointervallist/main.nf#L1-L57
+  nfcore_module_url: https://nf-co.re/modules/gatk4_bedtointervallist/
+  meta_description: Creates an interval list from a bed file and a reference dict
+  meta_keywords:
+  - bed
+  - bedtointervallist
+  - gatk4
+  - interval list
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'']'
+  - name: bed
+    type: file
+    description: Input bed file
+    pattern: '*.bed'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: dict
+    type: file
+    description: Sequence dictionary
+    pattern: '*.dict'
+  meta_outputs:
+  - name: interval_list
+    type: file
+    description: gatk interval list file
+    pattern: '*.interval_list'
+  meta_authors:
+  - '@kevinmenden'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@kevinmenden'
+  - '@ramprasadn'
+- name: GATK4_MERGEVCFS
+  docstring: ''
+  file: modules/nf-core/gatk4/mergevcfs/main.nf
+  line: 1
+  end_line: 61
+  inputs:
+  - name: val(meta), path(vcf)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.vcf.gz')
+    type: tuple
+    description: ''
+    emit: vcf
+  - name: val(meta), path("*.tbi")
+    type: tuple
+    description: ''
+    emit: tbi
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/gatk4/mergevcfs/main.nf#L1-L61
+  nfcore_module_url: https://nf-co.re/modules/gatk4_mergevcfs/
+  meta_description: Merges several vcf files
+  meta_keywords:
+  - gatk4
+  - merge
+  - vcf
+  meta_tools:
+  - name: gatk4
+    description: 'Developed in the Data Sciences Platform at the Broad Institute, the toolkit offers a
+      wide variety of tools
+
+      with a primary focus on variant discovery and genotyping. Its powerful processing engine
+
+      and high-performance computing features make it capable of taking on projects of any size.'
+    homepage: https://gatk.broadinstitute.org/hc/en-us
+    documentation: https://gatk.broadinstitute.org/hc/en-us/categories/360002369672s
+    doi: 10.1158/1538-7445.AM2017-3590
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'']'
+  - name: vcf
+    type: list
+    description: Two or more VCF files
+    pattern: '*.{vcf,vcf.gz}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'']'
+  - name: dict
+    type: file
+    description: Optional Sequence Dictionary as input
+    pattern: '*.dict'
+  meta_outputs:
+  - name: vcf
+    type: file
+    description: merged vcf file
+    pattern: '*.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: tbi
+    type: file
+    description: index files for the merged vcf files
+    pattern: '*.tbi'
+  meta_authors:
+  - '@kevinmenden'
+  meta_maintainers:
+  - '@kevinmenden'
+- name: UMITOOLS_EXTRACT
+  docstring: ''
+  file: modules/nf-core/umitools/extract/main.nf
+  line: 1
+  end_line: 74
+  inputs:
+  - name: val(meta), path(reads)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.fastq.gz")
+    type: tuple
+    description: ''
+    emit: reads
+  - name: val(meta), path("*.log")
+    type: tuple
+    description: ''
+    emit: log
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/umitools/extract/main.nf#L1-L74
+  nfcore_module_url: https://nf-co.re/modules/umitools_extract/
+  meta_description: Extracts UMI barcode from a read and add it to the read name, leaving any sample barcode
+    in place
+  meta_keywords:
+  - UMI
+  - barcode
+  - extract
+  - umitools
+  meta_tools:
+  - name: umi_tools
+    description: UMI-tools contains tools for dealing with Unique Molecular Identifiers (UMIs)/Random
+      Molecular Tags (RMTs) and single cell RNA-Seq cell barcodes
+    documentation: https://umi-tools.readthedocs.io/en/latest/
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: reads
+    type: list
+    description: List of input FASTQ files whose UMIs will be extracted.
+  meta_outputs:
+  - name: reads
+    type: file
+    description: Extracted FASTQ files. | For single-end reads, pattern is \${prefix}.umi_extract.fastq.gz.
+      | For paired-end reads, pattern is \${prefix}.umi_extract_{1,2}.fastq.gz.
+    pattern: '*.{fastq.gz}'
+  - name: log
+    type: file
+    description: Logfile for umi_tools
+    pattern: '*.{log}'
+  meta_authors:
+  - '@drpatelh'
+  - '@grst'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@grst'
+- name: SAMTOOLS_SORT
+  docstring: ''
+  file: modules/nf-core/samtools/sort/main.nf
+  line: 1
+  end_line: 78
+  inputs:
+  - name: val(meta), path(bam)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/sort/main.nf#L1-L78
+  nfcore_module_url: https://nf-co.re/modules/samtools_sort/
+  meta_description: Sort SAM/BAM/CRAM file
+  meta_keywords:
+  - sort
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bam
+    type: file
+    description: BAM/CRAM/SAM file(s)
+    pattern: '*.{bam,cram,sam}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fasta
+    type: file
+    description: Reference genome FASTA file
+    pattern: '*.{fa,fasta,fna}'
+  meta_outputs:
+  - name: bam
+    type: file
+    description: Sorted BAM file
+    pattern: '*.{bam}'
+  - name: cram
+    type: file
+    description: Sorted CRAM file
+    pattern: '*.{cram}'
+  - name: sam
+    type: file
+    description: Sorted SAM file
+    pattern: '*.{sam}'
+  - name: crai
+    type: file
+    description: CRAM index file (optional)
+    pattern: '*.crai'
+  - name: csi
+    type: file
+    description: BAM index file (optional)
+    pattern: '*.csi'
+  - name: bai
+    type: file
+    description: BAM index file (optional)
+    pattern: '*.bai'
+  meta_authors:
+  - '@drpatelh'
+  - '@ewels'
+  - '@matthdsm'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@ewels'
+  - '@matthdsm'
+- name: SAMTOOLS_MERGE
+  docstring: ''
+  file: modules/nf-core/samtools/merge/main.nf
+  line: 1
+  end_line: 52
+  inputs:
+  - name: 'val(meta), path(input_files, stageAs: "?/*")'
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta4), path(gzi)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/merge/main.nf#L1-L52
+  nfcore_module_url: https://nf-co.re/modules/samtools_merge/
+  meta_description: Merge BAM or CRAM file
+  meta_keywords:
+  - merge
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input_files
+    type: file
+    description: BAM/CRAM file
+    pattern: '*.{bam,cram,sam}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fasta
+    type: file
+    description: Reference file the CRAM was created with (optional)
+    pattern: '*.{fasta,fa}'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fai
+    type: file
+    description: Index of the reference file the CRAM was created with (optional)
+    pattern: '*.fai'
+  - name: meta4
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: gzi
+    type: file
+    description: Index of the compressed reference file the CRAM was created with (optional)
+    pattern: '*.gzi'
+  meta_outputs:
+  - name: bam
+    type: file
+    description: BAM file
+    pattern: '*.{bam}'
+  - name: cram
+    type: file
+    description: CRAM file
+    pattern: '*.{cram}'
+  - name: csi
+    type: file
+    description: BAM index file (optional)
+    pattern: '*.csi'
+  - name: crai
+    type: file
+    description: CRAM index file (optional)
+    pattern: '*.crai'
+  meta_authors:
+  - '@yuukiiwa'
+  - '@maxulysse'
+  - '@FriederikeHanssen'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@yuukiiwa'
+  - '@maxulysse'
+  - '@FriederikeHanssen'
+  - '@ramprasadn'
+- name: SAMTOOLS_IDXSTATS
+  docstring: ''
+  file: modules/nf-core/samtools/idxstats/main.nf
+  line: 1
+  end_line: 48
+  inputs:
+  - name: val(meta), path(bam), path(bai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.idxstats")
+    type: tuple
+    description: ''
+    emit: idxstats
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/idxstats/main.nf#L1-L48
+  nfcore_module_url: https://nf-co.re/modules/samtools_idxstats/
+  meta_description: Reports alignment summary statistics for a BAM/CRAM/SAM file
+  meta_keywords:
+  - stats
+  - mapping
+  - counts
+  - chromosome
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bam
+    type: file
+    description: BAM/CRAM/SAM file
+    pattern: '*.{bam,cram,sam}'
+  - name: bai
+    type: file
+    description: Index for BAM/CRAM/SAM file
+    pattern: '*.{bai,crai,sai}'
+  meta_outputs:
+  - name: idxstats
+    type: file
+    description: File containing samtools idxstats output
+    pattern: '*.{idxstats}'
+  meta_authors:
+  - '@drpatelh'
+  meta_maintainers:
+  - '@drpatelh'
+- name: SAMTOOLS_FAIDX
+  docstring: ''
+  file: modules/nf-core/samtools/faidx/main.nf
+  line: 1
+  end_line: 50
+  inputs:
+  - name: val(meta), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/faidx/main.nf#L1-L50
+  nfcore_module_url: https://nf-co.re/modules/samtools_faidx/
+  meta_description: Index FASTA file, and optionally generate a file of chromosome sizes
+  meta_keywords:
+  - index
+  - fasta
+  - faidx
+  - chromosome
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test'' ]'
+  - name: fasta
+    type: file
+    description: FASTA file
+    pattern: '*.{fa,fasta}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test'' ]'
+  - name: fai
+    type: file
+    description: FASTA index file
+    pattern: '*.{fai}'
+  meta_outputs:
+  - name: fa
+    type: file
+    description: FASTA file
+    pattern: '*.{fa}'
+  - name: sizes
+    type: file
+    description: File containing chromosome lengths
+    pattern: '*.{sizes}'
+  - name: fai
+    type: file
+    description: FASTA index file
+    pattern: '*.{fai}'
+  - name: gzi
+    type: file
+    description: Optional gzip index file for compressed inputs
+    pattern: '*.gzi'
+  meta_authors:
+  - '@drpatelh'
+  - '@ewels'
+  - '@phue'
+  meta_maintainers:
+  - '@maxulysse'
+  - '@phue'
+- name: SAMTOOLS_INDEX
+  docstring: ''
+  file: modules/nf-core/samtools/index/main.nf
+  line: 1
+  end_line: 49
+  inputs:
+  - name: val(meta), path(input)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.bai")
+    type: tuple
+    description: ''
+    emit: bai
+  - name: val(meta), path("*.csi")
+    type: tuple
+    description: ''
+    emit: csi
+  - name: val(meta), path("*.crai")
+    type: tuple
+    description: ''
+    emit: crai
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/index/main.nf#L1-L49
+  nfcore_module_url: https://nf-co.re/modules/samtools_index/
+  meta_description: Index SAM/BAM/CRAM file
+  meta_keywords:
+  - index
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: input file
+  meta_outputs:
+  - name: bai
+    type: file
+    description: BAM/CRAM/SAM index file
+    pattern: '*.{bai,crai,sai}'
+  - name: csi
+    type: file
+    description: CSI index file
+    pattern: '*.{csi}'
+  - name: crai
+    type: file
+    description: BAM/CRAM/SAM index file
+    pattern: '*.{bai,crai,sai}'
+  meta_authors:
+  - '@drpatelh'
+  - '@ewels'
+  - '@maxulysse'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@ewels'
+  - '@maxulysse'
+- name: SAMTOOLS_FLAGSTAT
+  docstring: ''
+  file: modules/nf-core/samtools/flagstat/main.nf
+  line: 1
+  end_line: 57
+  inputs:
+  - name: val(meta), path(bam), path(bai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.flagstat")
+    type: tuple
+    description: ''
+    emit: flagstat
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/flagstat/main.nf#L1-L57
+  nfcore_module_url: https://nf-co.re/modules/samtools_flagstat/
+  meta_description: Counts the number of alignments in a BAM/CRAM/SAM file for each FLAG type
+  meta_keywords:
+  - stats
+  - mapping
+  - counts
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bam
+    type: file
+    description: BAM/CRAM/SAM file
+    pattern: '*.{bam,cram,sam}'
+  - name: bai
+    type: file
+    description: Index for BAM/CRAM/SAM file
+    pattern: '*.{bai,crai,sai}'
+  meta_outputs:
+  - name: flagstat
+    type: file
+    description: File containing samtools flagstat output
+    pattern: '*.{flagstat}'
+  meta_authors:
+  - '@drpatelh'
+  meta_maintainers:
+  - '@drpatelh'
+- name: SAMTOOLS_STATS
+  docstring: ''
+  file: modules/nf-core/samtools/stats/main.nf
+  line: 1
+  end_line: 38
+  inputs:
+  - name: val(meta), path(input), path(input_index)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.stats")
+    type: tuple
+    description: ''
+    emit: stats
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/stats/main.nf#L1-L38
+  nfcore_module_url: https://nf-co.re/modules/samtools_stats/
+  meta_description: Produces comprehensive statistics from SAM/BAM/CRAM file
+  meta_keywords:
+  - statistics
+  - counts
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: BAM/CRAM file from alignment
+    pattern: '*.{bam,cram}'
+  - name: input_index
+    type: file
+    description: BAI/CRAI file from alignment
+    pattern: '*.{bai,crai}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fasta
+    type: file
+    description: Reference file the CRAM was created with (optional)
+    pattern: '*.{fasta,fa}'
+  meta_outputs:
+  - name: stats
+    type: file
+    description: File containing samtools stats output
+    pattern: '*.{stats}'
+  meta_authors:
+  - '@drpatelh'
+  - '@FriederikeHanssen'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@FriederikeHanssen'
+  - '@ramprasadn'
+- name: SAMTOOLS_CONVERT
+  docstring: ''
+  file: modules/nf-core/samtools/convert/main.nf
+  line: 1
+  end_line: 60
+  inputs:
+  - name: val(meta), path(input), path(index)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.bam")
+    type: tuple
+    description: ''
+    emit: bam
+  - name: val(meta), path("*.cram")
+    type: tuple
+    description: ''
+    emit: cram
+  - name: val(meta), path("*.bai")
+    type: tuple
+    description: ''
+    emit: bai
+  - name: val(meta), path("*.crai")
+    type: tuple
+    description: ''
+    emit: crai
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/samtools/convert/main.nf#L1-L60
+  nfcore_module_url: https://nf-co.re/modules/samtools_convert/
+  meta_description: convert and then index CRAM -> BAM or BAM -> CRAM file
+  meta_keywords:
+  - view
+  - index
+  - bam
+  - cram
+  meta_tools:
+  - name: samtools
+    description: 'SAMtools is a set of utilities for interacting with and post-processing
+
+      short DNA sequence read alignments in the SAM, BAM and CRAM formats, written by Heng Li.
+
+      These files are generated as output by short read aligners like BWA.'
+    homepage: http://www.htslib.org/
+    documentation: http://www.htslib.org/doc/samtools.html
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:samtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: BAM/CRAM file
+    pattern: '*.{bam,cram}'
+  - name: index
+    type: file
+    description: BAM/CRAM index file
+    pattern: '*.{bai,crai}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: fasta
+    type: file
+    description: Reference file to create the CRAM file
+    pattern: '*.{fasta,fa}'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: fai
+    type: file
+    description: Reference index file to create the CRAM file
+    pattern: '*.{fai}'
+  meta_outputs:
+  - name: bam
+    type: file
+    description: filtered/converted BAM file
+    pattern: '*{.bam}'
+  - name: cram
+    type: file
+    description: filtered/converted CRAM file
+    pattern: '*{cram}'
+  - name: bai
+    type: file
+    description: filtered/converted BAM index
+    pattern: '*{.bai}'
+  - name: crai
+    type: file
+    description: filtered/converted CRAM index
+    pattern: '*{.crai}'
+  meta_authors:
+  - '@FriederikeHanssen'
+  - '@maxulysse'
+  meta_maintainers:
+  - '@FriederikeHanssen'
+  - '@maxulysse'
+  - '@matthdsm'
+- name: BEDTOOLS_SORT
+  docstring: ''
+  file: modules/nf-core/bedtools/sort/main.nf
+  line: 1
+  end_line: 54
+  inputs:
+  - name: val(meta), path(intervals)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/bedtools/sort/main.nf#L1-L54
+  nfcore_module_url: https://nf-co.re/modules/bedtools_sort/
+  meta_description: Sorts a feature file by chromosome and other criteria.
+  meta_keywords:
+  - bed
+  - sort
+  - bedtools
+  - chromosome
+  meta_tools:
+  - name: bedtools
+    description: A set of tools for genomic analysis tasks, specifically enabling genome arithmetic (merge,
+      count, complement) on various file types.
+    documentation: https://bedtools.readthedocs.io/en/latest/content/tools/sort.html
+    licence:
+    - MIT
+    identifier: biotools:bedtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: intervals
+    type: file
+    description: BED/BEDGRAPH
+    pattern: '*.{bed|bedGraph}'
+  meta_outputs:
+  - name: sorted
+    type: file
+    description: Sorted output file
+    pattern: '*.${extension}'
+  meta_authors:
+  - '@edmundmiller'
+  - '@sruthipsuresh'
+  - '@drpatelh'
+  - '@chris-cheshire'
+  - '@adamrtalbot'
+  meta_maintainers:
+  - '@edmundmiller'
+  - '@sruthipsuresh'
+  - '@drpatelh'
+  - '@chris-cheshire'
+  - '@adamrtalbot'
+- name: BEDTOOLS_MERGE
+  docstring: ''
+  file: modules/nf-core/bedtools/merge/main.nf
+  line: 1
+  end_line: 47
+  inputs:
+  - name: val(meta), path(bed)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.bed')
+    type: tuple
+    description: ''
+    emit: bed
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/bedtools/merge/main.nf#L1-L47
+  nfcore_module_url: https://nf-co.re/modules/bedtools_merge/
+  meta_description: combines overlapping or “book-ended” features in an interval file into a single feature
+    which spans all of the combined features.
+  meta_keywords:
+  - bed
+  - merge
+  - bedtools
+  - overlapped bed
+  meta_tools:
+  - name: bedtools
+    description: A set of tools for genomic analysis tasks, specifically enabling genome arithmetic (merge,
+      count, complement) on various file types.
+    documentation: https://bedtools.readthedocs.io/en/latest/content/tools/merge.html
+    licence:
+    - MIT
+    identifier: biotools:bedtools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: bed
+    type: file
+    description: Input BED file
+    pattern: '*.{bed}'
+  meta_outputs:
+  - name: bed
+    type: file
+    description: Overlapped bed file with combined features
+    pattern: '*.{bed}'
+  meta_authors:
+  - '@edmundmiller'
+  - '@sruthipsuresh'
+  - '@drpatelh'
+  meta_maintainers:
+  - '@edmundmiller'
+  - '@sruthipsuresh'
+  - '@drpatelh'
+- name: STAR_GENOMEGENERATE
+  docstring: ''
+  file: modules/nf-core/star/genomegenerate/main.nf
+  line: 1
+  end_line: 119
+  inputs:
+  - name: val(meta), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(gtf)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("star")
+    type: tuple
+    description: ''
+    emit: index
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/star/genomegenerate/main.nf#L1-L119
+  nfcore_module_url: https://nf-co.re/modules/star_genomegenerate/
+  meta_description: Create index for STAR
+  meta_keywords:
+  - index
+  - fasta
+  - genome
+  - reference
+  meta_tools:
+  - name: star
+    description: 'STAR is a software package for mapping DNA sequences against
+
+      a large reference genome, such as the human genome.'
+    homepage: https://github.com/alexdobin/STAR
+    doi: 10.1093/bioinformatics/bts635
+    licence:
+    - MIT
+    identifier: biotools:star
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: fasta
+    type: file
+    description: Fasta file of the reference genome
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test'' ]'
+  - name: gtf
+    type: file
+    description: GTF file of the reference genome
+  meta_outputs:
+  - name: index
+    type: directory
+    description: Folder containing the star index files
+    pattern: star
+  meta_authors:
+  - '@kevinmenden'
+  - '@drpatelh'
+  meta_maintainers:
+  - '@kevinmenden'
+  - '@drpatelh'
+- name: STAR_ALIGN
+  docstring: ''
+  file: modules/nf-core/star/align/main.nf
+  line: 1
+  end_line: 111
+  inputs:
+  - name: 'val(meta), path(reads, stageAs: "input*/*")'
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(index)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(gtf)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*Log.final.out')
+    type: tuple
+    description: ''
+    emit: log_final
+  - name: val(meta), path('*Log.out')
+    type: tuple
+    description: ''
+    emit: log_out
+  - name: val(meta), path('*Log.progress.out')
+    type: tuple
+    description: ''
+    emit: log_progress
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  - name: val(meta), path('*d.out.bam')
+    type: tuple
+    description: ''
+    emit: bam
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/star/align/main.nf#L1-L111
+  nfcore_module_url: https://nf-co.re/modules/star_align/
+  meta_description: Align reads to a reference genome using STAR
+  meta_keywords:
+  - align
+  - fasta
+  - genome
+  - reference
+  meta_tools:
+  - name: star
+    description: 'STAR is a software package for mapping DNA sequences against
+
+      a large reference genome, such as the human genome.'
+    homepage: https://github.com/alexdobin/STAR
+    doi: 10.1093/bioinformatics/bts635
+    licence:
+    - MIT
+    identifier: biotools:star
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: reads
+    type: file
+    description: 'List of input FastQ files of size 1 and 2 for single-end and paired-end data,
+
+      respectively.'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test'' ]'
+  - name: index
+    type: directory
+    description: STAR genome index
+    pattern: star
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''test'' ]'
+  - name: gtf
+    type: file
+    description: Annotation GTF file
+    pattern: '*.{gtf}'
+  meta_outputs:
+  - name: log_final
+    type: file
+    description: STAR final log file
+    pattern: '*Log.final.out'
+  - name: log_out
+    type: file
+    description: STAR lot out file
+    pattern: '*Log.out'
+  - name: log_progress
+    type: file
+    description: STAR log progress file
+    pattern: '*Log.progress.out'
+  - name: bam
+    type: file
+    description: Output BAM file containing read alignments
+    pattern: '*.{bam}'
+  - name: bam_sorted
+    type: file
+    description: Sorted BAM file of read alignments (optional)
+    pattern: '*sortedByCoord.out.bam'
+  - name: bam_sorted_aligned
+    type: file
+    description: Sorted BAM file of read alignments (optional)
+    pattern: '*.Aligned.sortedByCoord.out.bam'
+  - name: bam_transcript
+    type: file
+    description: Output BAM file of transcriptome alignment (optional)
+    pattern: '*toTranscriptome.out.bam'
+  - name: bam_unsorted
+    type: file
+    description: Unsorted BAM file of read alignments (optional)
+    pattern: '*Aligned.unsort.out.bam'
+  - name: fastq
+    type: file
+    description: Unmapped FastQ files (optional)
+    pattern: '*fastq.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: tab
+    type: file
+    description: STAR output tab file(s) (optional)
+    pattern: '*.tab'
+    ontologies:
+    - http://edamontology.org/format_3475
+  - name: spl_junc_tab
+    type: file
+    description: STAR output splice junction tab file
+    pattern: '*.SJ.out.tab'
+    ontologies:
+    - http://edamontology.org/format_3475
+  - name: read_per_gene_tab
+    type: file
+    description: STAR output read per gene tab file
+    pattern: '*.ReadsPerGene.out.tab'
+    ontologies:
+    - http://edamontology.org/format_3475
+  - name: junction
+    type: file
+    description: STAR chimeric junction output file (optional)
+    pattern: '*.out.junction'
+  - name: sam
+    type: file
+    description: STAR output SAM file(s) (optional)
+    pattern: '*.out.sam'
+  - name: wig
+    type: file
+    description: STAR output wiggle format file(s) (optional)
+    pattern: '*.wig'
+  - name: bedgraph
+    type: file
+    description: STAR output bedGraph format file(s) (optional)
+    pattern: '*.bg'
+  meta_authors:
+  - '@kevinmenden'
+  - '@drpatelh'
+  - '@praveenraj2018'
+  meta_maintainers:
+  - '@kevinmenden'
+  - '@drpatelh'
+  - '@praveenraj2018'
+- name: STAR_INDEXVERSION
+  docstring: ''
+  file: modules/nf-core/star/indexversion/main.nf
+  line: 1
+  end_line: 41
+  inputs: []
+  outputs:
+  - name: '*.txt'
+    type: path
+    description: ''
+    emit: index_version
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/star/indexversion/main.nf#L1-L41
+  nfcore_module_url: https://nf-co.re/modules/star_indexversion/
+  meta_description: Get the minimal allowed index version from STAR
+  meta_keywords:
+  - index
+  - version
+  - rna
+  meta_tools:
+  - name: star
+    description: 'STAR is a software package for mapping DNA sequences against
+
+      a large reference genome, such as the human genome.'
+    homepage: https://github.com/alexdobin/STAR
+    doi: 10.1093/bioinformatics/bts635
+    licence:
+    - MIT
+    identifier: biotools:star
+  meta_outputs:
+  - name: index_version
+  meta_authors:
+  - '@nvnieuwk'
+  meta_maintainers:
+  - '@nvnieuwk'
+- name: SNPEFF_SNPEFF
+  docstring: ''
+  file: modules/nf-core/snpeff/snpeff/main.nf
+  line: 1
+  end_line: 56
+  inputs:
+  - name: val(meta), path(vcf)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(cache)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.ann.vcf")
+    type: tuple
+    description: ''
+    emit: vcf
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/snpeff/snpeff/main.nf#L1-L56
+  nfcore_module_url: https://nf-co.re/modules/snpeff_snpeff/
+  meta_description: Genetic variant annotation and functional effect prediction toolbox
+  meta_keywords:
+  - annotation
+  - effect prediction
+  - snpeff
+  - variant
+  - vcf
+  meta_tools:
+  - name: snpeff
+    description: 'SnpEff is a variant annotation and effect prediction tool.
+
+      It annotates and predicts the effects of genetic variants on genes and proteins (such as amino acid
+      changes).'
+    homepage: https://pcingola.github.io/SnpEff/
+    documentation: https://pcingola.github.io/SnpEff/se_introduction/
+    licence:
+    - MIT
+    identifier: biotools:snpeff
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: vcf
+    type: file
+    description: vcf to annotate
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: cache
+    type: file
+    description: path to snpEff cache (optional)
+  meta_outputs:
+  - name: vcf
+    type: file
+    description: annotated vcf
+    pattern: '*.ann.vcf'
+  - name: report
+    type: string
+    description: 'The process
+
+      The tool name
+
+      snpEff report csv file'
+    pattern: '*.csv'
+    ontologies:
+    - http://edamontology.org/format_3752
+  - name: summary_html
+    type: string
+    description: 'The process
+
+      The tool name
+
+      snpEff summary statistics in html file'
+    pattern: '*.html'
+  - name: genes_txt
+    type: string
+    description: 'The process
+
+      The tool name
+
+      txt (tab separated) file having counts of the number of variants affecting each transcript and gene'
+    pattern: '*.genes.txt'
+  meta_authors:
+  - '@maxulysse'
+  meta_maintainers:
+  - '@maxulysse'
+- name: SNPEFF_DOWNLOAD
+  docstring: ''
+  file: modules/nf-core/snpeff/download/main.nf
+  line: 1
+  end_line: 44
+  inputs:
+  - name: val(meta), val(snpeff_db)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('snpeff_cache')
+    type: tuple
+    description: ''
+    emit: cache
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/snpeff/download/main.nf#L1-L44
+  nfcore_module_url: https://nf-co.re/modules/snpeff_download/
+  meta_description: Genetic variant annotation and functional effect prediction toolbox
+  meta_keywords:
+  - annotation
+  - effect prediction
+  - snpeff
+  - variant
+  - vcf
+  meta_tools:
+  - name: snpeff
+    description: 'SnpEff is a variant annotation and effect prediction tool.
+
+      It annotates and predicts the effects of genetic variants on genes and proteins (such as amino acid
+      changes).'
+    homepage: https://pcingola.github.io/SnpEff/
+    documentation: https://pcingola.github.io/SnpEff/se_introduction/
+    licence:
+    - MIT
+    identifier: biotools:snpeff
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: snpeff_db
+    type: string
+    description: SnpEff database name
+  meta_outputs:
+  - name: cache
+    type: file
+    description: snpEff cache
+  meta_authors:
+  - '@maxulysse'
+  meta_maintainers:
+  - '@maxulysse'
+- name: ENSEMBLVEP_VEP
+  docstring: ''
+  file: modules/nf-core/ensemblvep/vep/main.nf
+  line: 1
+  end_line: 66
+  inputs:
+  - name: val(meta), path(vcf), path(custom_extra_files)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.vcf.gz")
+    type: tuple
+    description: ''
+    emit: vcf
+  - name: val(meta), path("*.vcf.gz.tbi")
+    type: tuple
+    description: ''
+    emit: tbi
+  - name: val(meta), path("*.tab.gz")
+    type: tuple
+    description: ''
+    emit: tab
+  - name: val(meta), path("*.json.gz")
+    type: tuple
+    description: ''
+    emit: json
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/ensemblvep/vep/main.nf#L1-L66
+  nfcore_module_url: https://nf-co.re/modules/ensemblvep_vep/
+  meta_description: Ensembl Variant Effect Predictor (VEP). The output-file-format is controlled through
+    `task.ext.args`.
+  meta_keywords:
+  - annotation
+  - vcf
+  - json
+  - tab
+  meta_tools:
+  - name: ensemblvep
+    description: 'VEP determines the effect of your variants (SNPs, insertions, deletions, CNVs
+
+      or structural variants) on genes, transcripts, and protein sequence, as well as regulatory regions.'
+    homepage: https://www.ensembl.org/info/docs/tools/vep/index.html
+    documentation: https://www.ensembl.org/info/docs/tools/vep/script/index.html
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: vcf
+    type: file
+    description: vcf to annotate
+  - name: custom_extra_files
+    type: file
+    description: 'extra sample-specific files to be used with the `--custom` flag to be configured with
+      ext.args
+
+      (optional)'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing fasta reference information
+
+      e.g. [ id:''test'' ]'
+  - name: fasta
+    type: file
+    description: reference FASTA file (optional)
+    pattern: '*.{fasta,fa}'
+  meta_outputs:
+  - name: vcf
+    type: file
+    description: annotated vcf (optional)
+    pattern: '*.vcf.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: tbi
+    type: file
+    description: annotated vcf index (optional)
+    pattern: '*.vcf.gz.tbi'
+  - name: tab
+    type: file
+    description: tab file with annotated variants (optional)
+    pattern: '*.ann.tab.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: json
+    type: file
+    description: json file with annotated variants (optional)
+    pattern: '*.ann.json.gz'
+    ontologies:
+    - http://edamontology.org/format_3989
+  - name: report
+    type: string
+    description: 'The process
+
+      The tool name
+
+      VEP report file'
+    pattern: '*.html'
+  meta_authors:
+  - '@maxulysse'
+  - '@matthdsm'
+  - '@nvnieuwk'
+  meta_maintainers:
+  - '@maxulysse'
+  - '@matthdsm'
+  - '@nvnieuwk'
+- name: ENSEMBLVEP_DOWNLOAD
+  docstring: ''
+  file: modules/nf-core/ensemblvep/download/main.nf
+  line: 1
+  end_line: 37
+  inputs:
+  - name: val(meta), val(assembly), val(species), val(cache_version)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path(prefix)
+    type: tuple
+    description: ''
+    emit: cache
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/ensemblvep/download/main.nf#L1-L37
+  nfcore_module_url: https://nf-co.re/modules/ensemblvep_download/
+  meta_description: Ensembl Variant Effect Predictor (VEP). The cache downloading options are controlled
+    through `task.ext.args`.
+  meta_keywords:
+  - annotation
+  - cache
+  - download
+  meta_tools:
+  - name: ensemblvep
+    description: 'VEP determines the effect of your variants (SNPs, insertions, deletions, CNVs
+
+      or structural variants) on genes, transcripts, and protein sequence, as well as regulatory regions.'
+    homepage: https://www.ensembl.org/info/docs/tools/vep/index.html
+    documentation: https://www.ensembl.org/info/docs/tools/vep/script/index.html
+    licence:
+    - Apache-2.0
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: assembly
+    type: string
+    description: Genome assembly
+  - name: species
+    type: string
+    description: Specie
+  - name: cache_version
+    type: string
+    description: cache version
+  meta_outputs:
+  - name: cache
+    type: file
+    description: cache
+    pattern: '*'
+  meta_authors:
+  - '@maxulysse'
+  meta_maintainers:
+  - '@maxulysse'
+- name: BCFTOOLS_ANNOTATE
+  docstring: ''
+  file: modules/nf-core/bcftools/annotate/main.nf
+  line: 1
+  end_line: 87
+  inputs:
+  - name: val(meta), path(input), path(index), path(annotations), path(annotations_index)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/bcftools/annotate/main.nf#L1-L87
+  nfcore_module_url: https://nf-co.re/modules/bcftools_annotate/
+  meta_description: Add or remove annotations.
+  meta_keywords:
+  - bcftools
+  - annotate
+  - vcf
+  - remove
+  - add
+  meta_tools:
+  - name: annotate
+    description: Add or remove annotations.
+    homepage: http://samtools.github.io/bcftools/bcftools.html
+    documentation: https://samtools.github.io/bcftools/bcftools.html#annotate
+    doi: 10.1093/bioinformatics/btp352
+    licence:
+    - MIT
+    identifier: biotools:bcftools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: Query VCF or BCF file, can be either uncompressed or compressed
+  - name: index
+    type: file
+    description: Index of the query VCF or BCF file
+  - name: annotations
+    type: file
+    description: Bgzip-compressed file with annotations
+  - name: annotations_index
+    type: file
+    description: Index of the annotations file
+  meta_outputs:
+  - name: vcf
+    type: file
+    description: Compressed annotated VCF file
+    pattern: '*{vcf,vcf.gz,bcf,bcf.gz}'
+  - name: tbi
+    type: file
+    description: Alternative VCF file index
+    pattern: '*.tbi'
+  - name: csi
+    type: file
+    description: Default VCF file index
+    pattern: '*.csi'
+  meta_authors:
+  - '@projectoriented'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@projectoriented'
+  - '@ramprasadn'
+- name: PICARD_MARKDUPLICATES
+  docstring: ''
+  file: modules/nf-core/picard/markduplicates/main.nf
+  line: 1
+  end_line: 68
+  inputs:
+  - name: val(meta), path(reads)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(fasta)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta3), path(fai)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.bam")
+    type: tuple
+    description: ''
+    emit: bam
+  - name: val(meta), path("*.bai")
+    type: tuple
+    description: ''
+    emit: bai
+  - name: val(meta), path("*.cram")
+    type: tuple
+    description: ''
+    emit: cram
+  - name: val(meta), path("*.metrics.txt")
+    type: tuple
+    description: ''
+    emit: metrics
+  - name: versions.yml
+    type: path
+    description: ''
+    emit: versions
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/picard/markduplicates/main.nf#L1-L68
+  nfcore_module_url: https://nf-co.re/modules/picard_markduplicates/
+  meta_description: Locate and tag duplicate reads in a BAM file
+  meta_keywords:
+  - markduplicates
+  - pcr
+  - duplicates
+  - bam
+  - sam
+  - cram
+  meta_tools:
+  - name: picard
+    description: 'A set of command line tools (in Java) for manipulating high-throughput sequencing (HTS)
+
+      data and formats such as SAM/BAM/CRAM and VCF.'
+    homepage: https://broadinstitute.github.io/picard/
+    documentation: https://broadinstitute.github.io/picard/
+    licence:
+    - MIT
+    identifier: biotools:picard_tools
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: reads
+    type: file
+    description: Sequence reads file, can be SAM/BAM/CRAM format
+    pattern: '*.{bam,cram,sam}'
+  - name: meta2
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fasta
+    type: file
+    description: Reference genome fasta file, required for CRAM input
+    pattern: '*.{fasta,fa}'
+  - name: meta3
+    type: map
+    description: 'Groovy Map containing reference information
+
+      e.g. [ id:''genome'' ]'
+  - name: fai
+    type: file
+    description: Reference genome fasta index
+    pattern: '*.{fai}'
+  meta_outputs:
+  - name: bam
+    type: file
+    description: BAM file with duplicate reads marked/removed
+    pattern: '*.{bam}'
+  - name: bai
+    type: file
+    description: An optional BAM index file. If desired, --CREATE_INDEX must be passed as a flag
+    pattern: '*.{bai}'
+  - name: cram
+    type: file
+    description: Output CRAM file
+    pattern: '*.{cram}'
+  - name: metrics
+    type: file
+    description: Duplicate metrics file generated by picard
+    pattern: '*.{metrics.txt}'
+  meta_authors:
+  - '@drpatelh'
+  - '@projectoriented'
+  - '@ramprasadn'
+  meta_maintainers:
+  - '@drpatelh'
+  - '@projectoriented'
+  - '@ramprasadn'
+- name: TABIX_TABIX
+  docstring: ''
+  file: modules/nf-core/tabix/tabix/main.nf
+  line: 1
+  end_line: 35
+  inputs:
+  - name: val(meta), path(tab)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta)
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/tabix/tabix/main.nf#L1-L35
+  nfcore_module_url: https://nf-co.re/modules/tabix_tabix/
+  meta_description: create tabix index from a sorted bgzip tab-delimited genome file
+  meta_keywords:
+  - index
+  - tabix
+  - vcf
+  meta_tools:
+  - name: tabix
+    description: Generic indexer for TAB-delimited genome position files.
+    homepage: https://www.htslib.org/doc/tabix.html
+    documentation: https://www.htslib.org/doc/tabix.1.html
+    doi: 10.1093/bioinformatics/btq671
+    licence:
+    - MIT
+    identifier: biotools:tabix
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: tab
+    type: file
+    description: TAB-delimited genome position file compressed with bgzip
+    pattern: '*.{bed.gz,gff.gz,sam.gz,vcf.gz}'
+  meta_outputs:
+  - name: index
+    type: file
+    description: Tabix index file (either tbi or csi)
+    pattern: '*.{tbi,csi}'
+  meta_authors:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@maxulysse'
+  meta_maintainers:
+  - '@joseespinosa'
+  - '@drpatelh'
+  - '@maxulysse'
+- name: TABIX_BGZIPTABIX
+  docstring: ''
+  file: modules/nf-core/tabix/bgziptabix/main.nf
+  line: 1
+  end_line: 49
+  inputs:
+  - name: val(meta), path(input)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.gz")
+    type: tuple
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/tabix/bgziptabix/main.nf#L1-L49
+  nfcore_module_url: https://nf-co.re/modules/tabix_bgziptabix/
+  meta_description: bgzip a sorted tab-delimited genome file and then create tabix index
+  meta_keywords:
+  - bgzip
+  - compress
+  - index
+  - tabix
+  - vcf
+  meta_tools:
+  - name: tabix
+    description: Generic indexer for TAB-delimited genome position files.
+    homepage: https://www.htslib.org/doc/tabix.html
+    documentation: https://www.htslib.org/doc/tabix.1.html
+    doi: 10.1093/bioinformatics/btq671
+    licence:
+    - MIT
+    identifier: biotools:tabix
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: input
+    type: file
+    description: Sorted tab-delimited genome file
+  meta_outputs:
+  - name: gz_index
+    type: file
+    description: 'bgzipped tab-delimited genome file
+
+      Tabix index file (either tbi or csi)'
+    pattern: '*.gz, *.{tbi,csi}'
+    ontologies:
+    - http://edamontology.org/format_3989
+  meta_authors:
+  - '@maxulysse'
+  - '@DLBPointon'
+  meta_maintainers:
+  - '@maxulysse'
+  - '@DLBPointon'
+- name: CAT_FASTQ
+  docstring: ''
+  file: modules/nf-core/cat/fastq/main.nf
+  line: 1
+  end_line: 68
+  inputs:
+  - name: 'val(meta), path(reads, stageAs: "input*/*")'
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path("*.merged.fastq.gz")
+    type: tuple
+    description: ''
+    emit: reads
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/nf-core/cat/fastq/main.nf#L1-L68
+  nfcore_module_url: https://nf-co.re/modules/cat_fastq/
+  meta_description: Concatenates fastq files
+  meta_keywords:
+  - cat
+  - fastq
+  - concatenate
+  meta_tools:
+  - name: cat
+    description: The cat utility reads files sequentially, writing them to the standard output.
+    documentation: https://www.gnu.org/software/coreutils/manual/html_node/cat-invocation.html
+    licence:
+    - GPL-3.0-or-later
+  meta_inputs:
+  - name: meta
+    type: map
+    description: 'Groovy Map containing sample information
+
+      e.g. [ id:''test'', single_end:false ]'
+  - name: reads
+    type: file
+    description: List of input FastQ files to be concatenated.
+  meta_outputs:
+  - name: reads
+    type: file
+    description: Merged fastq file
+    pattern: '*.{merged.fastq.gz}'
+  meta_authors:
+  - '@joseespinosa'
+  - '@drpatelh'
+  meta_maintainers:
+  - '@joseespinosa'
+  - '@drpatelh'
+- name: REMOVE_UNKNOWN_REGIONS
+  docstring: ''
+  file: modules/local/remove_unknown_regions/main.nf
+  line: 1
+  end_line: 32
+  inputs:
+  - name: val(meta), path(bed)
+    type: tuple
+    description: ''
+    qualifier: ''
+  - name: val(meta2), path(dict)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.bed')
+    type: tuple
+    description: ''
+    emit: bed
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/local/remove_unknown_regions/main.nf#L1-L32
+- name: GTF2BED
+  docstring: 'Convert GTF annotation file to BED format.
+
+    Extracts genomic features (exons, transcripts, or genes) from a GTF file
+
+    and outputs them in BED format for use with interval-based tools.
+
+    The output BED file uses 0-based coordinates (BED standard) converted
+
+    from the 1-based GTF coordinates.'
+  file: modules/local/gtf2bed/main.nf
+  line: 13
+  end_line: 53
+  inputs:
+  - name: val(meta), path(gtf)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: val(meta), path('*.bed')
+    type: tuple
+    description: ''
+    emit: bed
+  directives: {}
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/modules/local/gtf2bed/main.nf#L13-L53
+functions:
+- name: paramsSummaryMultiqc
+  docstring: ''
+  file: main.nf
+  line: 327
+  end_line: 356
+  params:
+  - name: summary_params
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/main.nf#L327-L356
+- name: validateInputParameters
+  docstring: 'Validate pipeline input parameters.
+
+    Checks that all required parameters are provided and valid.
+
+    Currently validates that the specified genome exists in the config.'
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 251
+  end_line: 253
+  params: []
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L251-L253
+- name: validateInputSamplesheet
+  docstring: 'Validate and parse input samplesheet entries.
+
+    Ensures that multiple runs of the same sample have consistent
+
+    sequencing type (all single-end or all paired-end).'
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 264
+  end_line: 274
+  params:
+  - name: input
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L264-L274
+- name: checkSamplesAfterGrouping
+  docstring: 'Validate samples after grouping by sample ID.
+
+    Performs consistency checks on grouped sample data:
+
+    - Ensures only one BAM/CRAM file per sample
+
+    - Prevents mixing of FASTQ and BAM/CRAM inputs
+
+    - Validates consistent single-end/paired-end status
+
+    - Properly interleaves paired-end FASTQ files'
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 288
+  end_line: 335
+  params:
+  - name: input
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L288-L335
+- name: genomeExistsError
+  docstring: 'Check if the specified genome exists in the configuration.
+
+    Throws an error with a helpful message listing available genomes
+
+    if the specified genome key is not found in the config.'
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 343
+  end_line: 348
+  params: []
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L343-L348
+- name: toolCitationText
+  docstring: ''
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 353
+  end_line: 365
+  params: []
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L353-L365
+- name: toolBibliographyText
+  docstring: ''
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 367
+  end_line: 377
+  params: []
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L367-L377
+- name: methodsDescriptionText
+  docstring: ''
+  file: subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf
+  line: 379
+  end_line: 416
+  params:
+  - name: mqc_methods_yaml
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/utils_nfcore_rnavar_pipeline/main.nf#L379-L416
+- name: isCloudUrl
+  docstring: ''
+  file: subworkflows/local/annotation_cache_initialisation/main.nf
+  line: 70
+  end_line: 72
+  params:
+  - name: cache_url
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/annotation_cache_initialisation/main.nf#L70-L72
+- name: isCompatibleStarIndex
+  docstring: ''
+  file: subworkflows/local/prepare_genome/main.nf
+  line: 263
+  end_line: 296
+  params:
+  - name: index_version
+    type: ''
+    description: ''
+  - name: minimal_index_version
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/prepare_genome/main.nf#L263-L296
+- name: convertVersionToList
+  docstring: ''
+  file: subworkflows/local/prepare_genome/main.nf
+  line: 299
+  end_line: 318
+  params:
+  - name: version
+    type: ''
+    description: ''
+  return_type: ''
+  return_description: ''
+  source_url: https://github.com/nf-core/rnavar/blob/4d3227188ad305f91dd9f42e3d90d8d9eacbb1b2/subworkflows/local/prepare_genome/main.nf#L299-L318

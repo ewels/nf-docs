@@ -1,0 +1,168 @@
+pipeline:
+  name: rnaseq-nf
+  description: Proof of concept of a RNA-seq pipeline implemented with Nextflow
+  repository: https://github.com/nextflow-io/rnaseq-nf
+  authors:
+  - Paolo Di Tommaso
+  readme_content: "A basic pipeline for quantification of genomic features from short read data\nimplemented\
+    \ with Nextflow.\n\n[![nextflow](https://img.shields.io/badge/nextflow-%E2%89%A523.04.0-brightgreen.svg)](http://nextflow.io)\n\
+    \n\n## Requirements \n\n* Unix-like operating system (Linux, macOS, etc)\n* Java 11 \n\n## Quickstart\
+    \ \n\n1. If you don't have it already install Docker in your computer. Read more [here](https://docs.docker.com/).\n\
+    \n2. Install Nextflow (version 23.10.0 or later):\n      \n        curl -s https://get.nextflow.io\
+    \ | bash\n\n3. Launch the pipeline execution: \n\n        ./nextflow run nextflow-io/rnaseq-nf -with-docker\n\
+    \        \n4. When the execution completes open in your browser the report generated at the following\
+    \ path:\n\n        results/multiqc_report.html \n\t\nYou can see an example report at the following\
+    \ [link](http://multiqc.info/examples/rna-seq/multiqc_report.html).\t\n\t\nNote: the very first time\
+    \ you execute it, it will take a few minutes to download the pipeline \nfrom this GitHub repository\
+    \ and the associated Docker images needed to execute the pipeline.  \n\n## Pipeline flowchart\n\n\
+    Here is a visual representation of the design of RNASeq-NF pipeline, generated using the [visualization\
+    \ functionality](https://www.nextflow.io/docs/latest/tracing.html#dag-visualisation) of Nextflow.\n\
+    \n```mermaid\n%%{init: { 'theme': 'forest' } }%%\nflowchart TD\n    p0((Channel.fromFilePairs))\n\
+    \    p1(( ))\n    p2[RNASEQ:INDEX]\n    p3[RNASEQ:FASTQC]\n    p4[RNASEQ:QUANT]\n    p5([concat])\n\
+    \    p6([collect])\n    p7(( ))\n    p8[MULTIQC]\n    p9(( ))\n    p0 -->|read_pairs_ch| p3\n    p1\
+    \ -->|transcriptome| p2\n    p2 --> p4\n    p3 --> p5\n    p0 -->|read_pairs_ch| p4\n    p4 -->|pair_id|\
+    \ p5\n    p5 --> p6\n    p6 -->|$out0| p8\n    p7 -->|config| p8\n    p8 --> p9\n```\n\n## Cluster\
+    \ support\n\nRNASeq-NF execution relies on [Nextflow](http://www.nextflow.io) framework which provides\
+    \ an \nabstraction between the pipeline functional logic and the underlying processing system.\n\n\
+    This allows the execution of the pipeline in a single computer or in a HPC cluster without modifying\
+    \ it.\n\nCurrently the following resource manager platforms are supported:\n\n  + Univa Grid Engine\
+    \ (UGE)\n  + Platform LSF\n  + SLURM\n  + PBS/Torque\n\n\nBy default the pipeline is parallelized\
+    \ by spawning multiple threads in the machine where the script is launched.\n\nTo submit the execution\
+    \ to a UGE cluster create a file named `nextflow.config` in the directory\nwhere the pipeline is going\
+    \ to be executed with the following content:\n\n    process {\n      executor='uge'\n      queue='<queue\
+    \ name>'\n    }\n\nTo lean more about the avaible settings and the configuration file read the \n\
+    Nextflow [documentation](http://www.nextflow.io/docs/latest/config.html).\n\n\n## Components \n\n\
+    RNASeq-NF uses the following software components and tools: \n\n* [Salmon](https://combine-lab.github.io/salmon/)\n\
+    * [FastQC](https://www.bioinformatics.babraham.ac.uk/projects/fastqc/)\n* [MultiQC](https://multiqc.info)\n\
+    \n"
+inputs:
+- name: outdir
+  type: string
+  description: The output directory where the results will be saved. You have to use absolute paths to
+    storage on Cloud infrastructure.
+  required: false
+  default: results
+  format: directory-path
+  group: Input/output options
+  fa_icon: fas fa-folder-open
+- name: reads
+  type: string
+  description: The input read-pair files
+  required: false
+  default: ${projectDir}/data/ggal/ggal_gut_{1,2}.fq
+  group: Input/output options
+  fa_icon: fas fa-folder-open
+- name: transcriptome
+  type: string
+  description: The input transcriptome file
+  required: false
+  default: ${projectDir}/data/ggal/ggal_1_48850000_49020000.Ggal71.500bpflank.fa
+  group: Input/output options
+  fa_icon: fas fa-folder-open
+- name: multiqc
+  type: string
+  description: ''
+  required: false
+  default: ${projectDir}/multiqc
+  group: Input/output options
+  fa_icon: fas fa-folder-open
+config_params: []
+workflows:
+- name: ''
+  docstring: ''
+  file: main.nf
+  line: 26
+  end_line: 51
+  inputs: []
+  outputs: []
+  calls: []
+  is_entry: true
+  source_url: https://github.com/nextflow-io/rnaseq-nf/blob/ca20a6dfd2d799b903e557dc2e736d55419c7a1a/main.nf#L26-L51
+- name: RNASEQ
+  docstring: ''
+  file: modules/rnaseq.nf
+  line: 5
+  end_line: 18
+  inputs:
+  - name: read_pairs_ch
+    type: ''
+    description: ''
+  - name: transcriptome
+    type: ''
+    description: ''
+  outputs:
+  - name: fastqc
+    type: ''
+    description: ''
+  - name: quant
+    type: ''
+    description: ''
+  calls: []
+  is_entry: false
+  source_url: https://github.com/nextflow-io/rnaseq-nf/blob/ca20a6dfd2d799b903e557dc2e736d55419c7a1a/modules/rnaseq.nf#L5-L18
+processes:
+- name: QUANT
+  docstring: ''
+  file: modules/quant/main.nf
+  line: 2
+  end_line: 17
+  inputs:
+  - name: val(id), path(fastq_1), path(fastq_2)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: quant_${id
+    type: path
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nextflow-io/rnaseq-nf/blob/ca20a6dfd2d799b903e557dc2e736d55419c7a1a/modules/quant/main.nf#L2-L17
+- name: MULTIQC
+  docstring: ''
+  file: modules/multiqc/main.nf
+  line: 3
+  end_line: 20
+  inputs:
+  - name: '*'
+    type: path
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: multiqc_report.html
+    type: path
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nextflow-io/rnaseq-nf/blob/ca20a6dfd2d799b903e557dc2e736d55419c7a1a/modules/multiqc/main.nf#L3-L20
+- name: INDEX
+  docstring: ''
+  file: modules/index/main.nf
+  line: 2
+  end_line: 16
+  inputs: []
+  outputs:
+  - name: index
+    type: path
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nextflow-io/rnaseq-nf/blob/ca20a6dfd2d799b903e557dc2e736d55419c7a1a/modules/index/main.nf#L2-L16
+- name: FASTQC
+  docstring: ''
+  file: modules/fastqc/main.nf
+  line: 3
+  end_line: 18
+  inputs:
+  - name: val(id), path(fastq_1), path(fastq_2)
+    type: tuple
+    description: ''
+    qualifier: ''
+  outputs:
+  - name: fastqc_${id
+    type: path
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nextflow-io/rnaseq-nf/blob/ca20a6dfd2d799b903e557dc2e736d55419c7a1a/modules/fastqc/main.nf#L3-L18
+functions: []

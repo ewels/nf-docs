@@ -1,0 +1,31 @@
+pipeline:
+  name: hello
+  repository: https://github.com/nextflow-io/hello
+inputs: []
+config_params: []
+workflows:
+- name: ''
+  docstring: ''
+  file: main.nf
+  line: 16
+  end_line: 18
+  inputs: []
+  outputs: []
+  calls: []
+  is_entry: true
+  source_url: https://github.com/nextflow-io/hello/blob/2ce0b0e2943449188092a0e25102f0dadc70cb0a/main.nf#L16-L18
+processes:
+- name: sayHello
+  docstring: ''
+  file: main.nf
+  line: 3
+  end_line: 14
+  inputs: []
+  outputs:
+  - name: stdout
+    type: stdout
+    description: ''
+    emit: ''
+  directives: {}
+  source_url: https://github.com/nextflow-io/hello/blob/2ce0b0e2943449188092a0e25102f0dadc70cb0a/main.nf#L3-L14
+functions: []

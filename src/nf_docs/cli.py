@@ -161,9 +161,9 @@ def main() -> None:
     "--format",
     "-f",
     "output_format",
-    type=click.Choice(["json", "yaml", "markdown", "md", "html"], case_sensitive=False),
+    type=click.Choice(["json", "yaml", "markdown", "md", "html", "table"], case_sensitive=False),
     default="html",
-    help="Output format: json, yaml, markdown (or md), html (default: html)",
+    help="Output format: json, yaml, markdown (or md), html, table (default: html)",
 )
 @click.option(
     "--output",
@@ -268,7 +268,7 @@ def generate(
             # Determine output
             if output_path:
                 # Write to file/directory
-                if output_format in ("markdown", "html"):
+                if output_format in ("markdown", "html", "table"):
                     created_files = renderer.render_to_directory(pipeline, output_path)
                     progress.update(task, description="Rendering complete")
                 else:
@@ -294,7 +294,7 @@ def generate(
 
         # Output results after progress display is gone
         if output_path:
-            if output_format in ("markdown", "html"):
+            if output_format in ("markdown", "html", "table"):
                 file_word = "file" if len(created_files) == 1 else "files"
                 console.print(
                     f"[green]Created {len(created_files)} {file_word} in {output_path}[/green]"

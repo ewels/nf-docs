@@ -254,12 +254,20 @@ def _slugify(text: str) -> str:
     return slug.strip("-")
 
 
-def _add_heading_anchors(html: str) -> str:
-    """
-    Add IDs and anchor links to headings in HTML.
+def _add_heading_anchors(html: str, prefix: str = "") -> str:
+    """Add IDs and anchor links to headings in HTML.
 
-    Transforms <h1>Title</h1> to:
-    <h1 id="title" class="heading-anchor">Title<a href="#title" class="paragraph-link">¶</a></h1>
+    Transforms ``<h1>Title</h1>`` to::
+
+        <h1 id="title" class="heading-anchor">
+          Title<a href="#title" class="paragraph-link">¶</a>
+        </h1>
+
+    Args:
+        html: The HTML string to process.
+        prefix: Optional prefix for generated IDs (e.g. ``"readme-"``).
+            Used to avoid collisions with page-level section IDs when
+            the headings come from embedded content like a README.
     """
     heading_pattern = re.compile(r"<(h[1-6])>(.+?)</\1>", re.IGNORECASE | re.DOTALL)
 
@@ -271,7 +279,7 @@ def _add_heading_anchors(html: str) -> str:
 
         # Extract text content for the slug (strip any HTML tags)
         text_content = re.sub(r"<[^>]+>", "", content)
-        slug = _slugify(text_content)
+        slug = f"{prefix}{_slugify(text_content)}"
 
         # Handle duplicate IDs by appending a number
         if slug in seen_ids:
@@ -289,12 +297,18 @@ def _add_heading_anchors(html: str) -> str:
     return heading_pattern.sub(replace_heading, html)
 
 
-def md_to_html(text: str | None, add_anchors: bool = False) -> Markup:
+def md_to_html(
+    text: str | None,
+    add_anchors: bool = False,
+    heading_id_prefix: str = "",
+) -> Markup:
     """Convert markdown text to HTML, safe for Jinja templates.
 
     Args:
-        text: Markdown text to convert
-        add_anchors: If True, add IDs and anchor links to headings
+        text: Markdown text to convert.
+        add_anchors: If True, add IDs and anchor links to headings.
+        heading_id_prefix: Prefix for heading IDs (e.g. ``"readme-"``).
+            Only used when *add_anchors* is True.
     """
     if not text:
         return Markup("")
@@ -321,13 +335,17 @@ def md_to_html(text: str | None, add_anchors: bool = False) -> Markup:
     html = _process_github_alerts(html)
     # Optionally add heading anchors
     if add_anchors:
-        html = _add_heading_anchors(html)
+        html = _add_heading_anchors(html, prefix=heading_id_prefix)
     return Markup(html)
 
 
 def md_to_html_with_anchors(text: str | None) -> Markup:
-    """Convert markdown text to HTML with heading anchors."""
-    return md_to_html(text, add_anchors=True)
+    """Convert markdown text to HTML with heading anchors.
+
+    README heading IDs are prefixed with ``readme-`` to avoid collisions
+    with page-level section IDs (e.g. ``inputs``, ``processes``).
+    """
+    return md_to_html(text, add_anchors=True, heading_id_prefix="readme-")
 
 
 def add_word_breaks(text: str | None) -> Markup:

@@ -33,6 +33,34 @@
     nf-docs ./my_pipeline
     ```
 
+=== ":material-puzzle:{ .middle } &nbsp; Pixi"
+
+    ```bash
+    # One-time channel setup
+    pixi config set default-channels '["conda-forge", "bioconda"]'
+
+    # Install globally
+    pixi global install nf-docs
+
+    # Run
+    nf-docs ./my_pipeline
+    ```
+
+=== ":simple-anaconda:{ .middle } &nbsp; Conda"
+
+    ```bash
+    # One-time channel setup
+    conda config --add channels bioconda
+    conda config --add channels conda-forge
+    conda config --set channel_priority strict
+
+    # Install
+    conda install nf-docs
+
+    # Run
+    nf-docs ./my_pipeline
+    ```
+
 === ":simple-git:{ .middle } &nbsp; Development"
 
     ```bash
@@ -45,3 +73,9 @@
     # Run
     nf-docs ./my_pipeline
     ```
+
+## Package Links
+
+- [:simple-pypi: PyPI](https://pypi.org/project/nf-docs/)
+- [:simple-anaconda: Bioconda](https://bioconda.github.io/recipes/nf-docs/README.html)
+- [:simple-github: GitHub Releases](https://github.com/ewels/nf-docs/releases)

@@ -160,3 +160,113 @@ class TestSymbolNameParsing:
         symbol_type, name = extractor._parse_symbol_name("")
         assert symbol_type == "unknown"
         assert name == ""
+
+
+class TestGroovydocParsing:
+    """Tests for Groovydoc parsing from source files."""
+
+    def test_parse_groovydoc_at_param_return(self):
+        """Parse standard @param and @return tags."""
+        from nf_docs.extractor import _parse_groovydoc_comment
+
+        comment = """
+         * Align reads to reference genome.
+         *
+         * @param meta  Map containing sample information
+         * @param bam   Input BAM file
+         * @return txt  Tuple of meta and output text file
+         * @return bam  Tuple of meta and output BAM file
+        """
+        docstring, params = _parse_groovydoc_comment(comment)
+        assert docstring == "Align reads to reference genome."
+        assert params["meta"] == "Map containing sample information"
+        assert params["bam"] == "Input BAM file"
+        assert params["_return_txt"] == "Tuple of meta and output text file"
+        assert params["_return_bam"] == "Tuple of meta and output BAM file"
+
+    def test_parse_groovydoc_bullet_format(self):
+        """Parse Inputs:/Outputs: bullet-list format."""
+        from nf_docs.extractor import _parse_groovydoc_comment
+
+        comment = """
+         * Detect structural variants.
+         *
+         * Inputs:
+         *   - - meta: Map of sample info
+         *     - bam: Input BAM file
+         * Outputs:
+         *   - - meta: Map of sample info
+         *     - txt: SvPileup breakpoint output
+        """
+        docstring, params = _parse_groovydoc_comment(comment)
+        assert docstring == "Detect structural variants."
+        assert params["meta"] == "Map of sample info"
+        assert params["bam"] == "Input BAM file"
+        assert params["_return_txt"] == "SvPileup breakpoint output"
+
+    def test_parse_groovydoc_from_source_with_intervening_code(self):
+        """Groovydoc with code between */ and process declaration."""
+        from nf_docs.extractor import _parse_groovydoc_from_source
+
+        source = """\
+/**
+ * Detect SVs from BAM.
+ *
+ * @param meta  Sample metadata
+ * @param bam   Input BAM
+ * @return txt  Output text file
+ */
+nextflow.preview.types = true
+process SV_PILEUP {
+    input:
+    (meta, bam): Tuple<?, Path>
+
+    output:
+    txt
+    bam
+}
+"""
+        docstring, params = _parse_groovydoc_from_source(source, "SV_PILEUP")
+        assert "Detect SVs from BAM" in docstring
+        assert params["meta"] == "Sample metadata"
+        assert params["bam"] == "Input BAM"
+        assert params["_return_txt"] == "Output text file"
+
+    def test_parse_groovydoc_from_source_not_found(self):
+        """Returns empty when process not found in source."""
+        from nf_docs.extractor import _parse_groovydoc_from_source
+
+        docstring, params = _parse_groovydoc_from_source(
+            "process OTHER { script: '' }\n", "MISSING"
+        )
+        assert docstring == ""
+        assert params == {}
+
+    def test_find_param_description_simple(self):
+        """Match a simple input name to param docs."""
+        from nf_docs.extractor import _find_param_description
+
+        param_docs = {"reads": "FASTQ input files", "genome": "Reference genome"}
+        assert _find_param_description("reads", param_docs) == "FASTQ input files"
+
+    def test_find_param_description_tuple(self):
+        """Match tuple component names to param docs."""
+        from nf_docs.extractor import _find_param_description
+
+        param_docs = {
+            "meta": "Sample metadata map",
+            "bam": "Input BAM file",
+        }
+        desc = _find_param_description("val(meta), path(bam)", param_docs)
+        assert "meta" in desc
+        assert "Sample metadata map" in desc
+        assert "bam" in desc
+        assert "Input BAM file" in desc
+
+    def test_find_param_description_no_match(self):
+        """Returns empty when no param docs match."""
+        from nf_docs.extractor import _find_param_description
+
+        assert _find_param_description("unknown", {"meta": "desc"}) == ""
+        assert _find_param_description("val(x)", {"meta": "desc"}) == ""
+        assert _find_param_description("reads", {}) == ""

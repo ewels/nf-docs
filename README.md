@@ -11,7 +11,7 @@
 
 **[Full documentation →](https://ewels.github.io/nf-docs)**
 
-Choose from 3 different output formats:
+Choose from 4 different output formats:
 
 </div>
 
@@ -23,7 +23,7 @@ Choose from 3 different output formats:
 </td>
 <td width="33%">
 <h3 align="center">Markdown</h3>
-<ul><li>Multiple files by section</li><li>Perfect for static site generators</li></ul><hr>
+<ul><li>Multiple files or tables by section</li><li>Perfect for static site generators</li></ul><hr>
 </td>
 <td width="33%">
 <h3 align="center">JSON / YAML</h3>
@@ -35,7 +35,7 @@ Choose from 3 different output formats:
 ## What is nf-docs?
 
 <!-- prettier-ignore-start -->
-> [!INFO]
+> [!IMPORTANT]
 > This is not an official Nextflow project. It's a fun side-project by
 > [Phil Ewels](https://github.com/ewels). Please use at your own risk :)
 <!-- prettier-ignore-end -->
@@ -73,6 +73,15 @@ pip install nf-docs
 
 # Generate HTML documentation
 nf-docs generate ./my_pipeline
+```
+
+With [Bioconda](https://bioconda.github.io/) (requires
+[channel setup](https://bioconda.github.io/)):
+
+```bash
+pixi global install nf-docs
+# or
+conda install nf-docs
 ```
 
 That's it! Open `docs/index.html` in your browser.

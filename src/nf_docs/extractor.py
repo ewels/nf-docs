@@ -38,7 +38,13 @@ from nf_docs.models import (
     WorkflowInput,
     WorkflowOutput,
 )
-from nf_docs.nf_parser import parse_process_hover, parse_workflow_hover
+from nf_docs.nf_parser import (
+    RETURN_KEY_PREFIX,
+    RETURN_KEY_UNNAMED,
+    enrich_outputs_from_source,
+    parse_process_hover,
+    parse_workflow_hover,
+)
 from nf_docs.progress import (
     ExtractionPhase,
     ProgressCallbackType,
@@ -586,7 +592,15 @@ class PipelineExtractor:
         # Determine what kind of symbol this is based on parsed type or LSP kind
         if symbol_type == "process" or kind == SymbolKind.METHOD:
             process = self._create_process_from_signature(
-                name, signature, docstring, relative_path, line + 1, end_line + 1, source_url
+                name,
+                signature,
+                docstring,
+                relative_path,
+                line + 1,
+                end_line + 1,
+                source_url,
+                source_path=file_path,
+                param_docs=param_docs,
             )
             if process and not any(p.name == process.name for p in pipeline.processes):
                 # Apply meta.yml data if available (for modules)
@@ -638,11 +652,40 @@ class PipelineExtractor:
         line: int,
         end_line: int = 0,
         source_url: str = "",
+        source_path: Path | None = None,
+        param_docs: dict[str, str] | None = None,
     ) -> Process | None:
-        """Create a Process by parsing the LSP signature."""
+        """Create a Process by parsing the LSP signature.
+
+        When the LSP hover includes Groovydoc ``@param`` / ``@return`` tags,
+        their descriptions are applied to the matching inputs and outputs.
+        If the LSP returns no docstring (common with typed Nextflow syntax),
+        the Groovydoc is parsed directly from the ``.nf`` source file.
+        """
+        if param_docs is None:
+            param_docs = {}
+
+        # Read the source file once — shared by Groovydoc parsing and output enrichment.
+        source_text: str | None = None
+        if source_path:
+            try:
+                source_text = source_path.read_text(encoding="utf-8")
+            except OSError as e:
+                logger.debug(f"Could not read source file {source_path}: {e}")
+
+        # If the LSP returned no param docs, try to parse them from the source file.
+        # The LSP may return the free-text docstring but strip @param/@return tags,
+        # or (for typed processes) return no docstring at all.
+        if source_text is not None and not param_docs:
+            source_docstring, source_params = _parse_groovydoc_from_source(source_text, name)
+            if source_params:
+                param_docs = source_params
+            if not docstring and source_docstring:
+                docstring = source_docstring
+
         process = Process(
             name=name,
-            docstring=docstring,  # Actual Groovydoc documentation
+            docstring=docstring,
             file=file_path,
             line=line,
             end_line=end_line,
@@ -650,22 +693,38 @@ class PipelineExtractor:
         )
 
         # Use the nf_parser to extract inputs/outputs from the signature
-        # The signature is in the format:
-        # process NAME {
-        #   input:
-        #   tuple val(meta), path(reads)
-        #
-        #   output:
-        #   tuple val(meta), path("*.html"), emit: html
-        # }
         parsed = parse_process_hover(f"```nextflow\n{signature}\n```")
         if parsed:
+            # Enrich bare-name outputs from the source file when the LSP
+            # only returns emit names (common with typed Nextflow syntax)
+            outputs = parsed.outputs
+            if source_text is not None and any(not o.type for o in outputs):
+                outputs = enrich_outputs_from_source(outputs, source_text, name)
+
             for inp in parsed.inputs:
+                # Look up @param description by matching input component names
+                description = _find_param_description(inp.name, param_docs)
                 process.inputs.append(
-                    ProcessInput(name=inp.name, type=inp.type, qualifier=inp.qualifier)
+                    ProcessInput(
+                        name=inp.name,
+                        type=inp.type,
+                        qualifier=inp.qualifier,
+                        description=description,
+                    )
                 )
-            for out in parsed.outputs:
-                process.outputs.append(ProcessOutput(name=out.name, type=out.type, emit=out.emit))
+            for out in outputs:
+                # Look up @return description by emit name
+                description = param_docs.get(f"{RETURN_KEY_PREFIX}{out.emit}", "")
+                if not description:
+                    description = param_docs.get(RETURN_KEY_UNNAMED, "")
+                process.outputs.append(
+                    ProcessOutput(
+                        name=out.name,
+                        type=out.type,
+                        emit=out.emit,
+                        description=description,
+                    )
+                )
 
         return process
 
@@ -728,7 +787,7 @@ class PipelineExtractor:
             line=line,
             end_line=end_line,
             source_url=source_url,
-            return_description=param_docs.get("_return", ""),
+            return_description=param_docs.get(RETURN_KEY_UNNAMED, ""),
         )
 
         # Parse function signature: def name(param1: Type, param2: Type) -> ReturnType
@@ -759,3 +818,186 @@ class PipelineExtractor:
                         )
 
         return function
+
+
+def _find_param_description(input_name: str, param_docs: dict[str, str]) -> str:
+    """Find a ``@param`` description that matches a parsed input name.
+
+    Input names may be composite (e.g. ``val(meta), path(bam)``) so we check
+    each component name against the ``param_docs`` keys.  For a tuple input
+    the descriptions of all matching components are joined.
+
+    Args:
+        input_name: The parsed input name (e.g. ``"val(meta), path(bam)"`` or ``"reads"``).
+        param_docs: Dict mapping param names to their Groovydoc descriptions.
+
+    Returns:
+        The matching description, or an empty string if none found.
+    """
+    if not param_docs:
+        return ""
+
+    # Direct match (simple inputs like "reads")
+    if input_name in param_docs:
+        return param_docs[input_name]
+
+    # For composite/tuple inputs, extract component names and look them up
+    # Matches val(meta), path(bam), file(reads), env(x), etc.
+    component_names = re.findall(r"(?:val|path|file|env)\((\w+)\)", input_name)
+    if not component_names:
+        return ""
+
+    descriptions = []
+    for comp_name in component_names:
+        if comp_name in param_docs:
+            descriptions.append(f"`{comp_name}`: {param_docs[comp_name]}")
+
+    return "; ".join(descriptions) if descriptions else ""
+
+
+def _parse_groovydoc_from_source(
+    source: str,
+    process_name: str,
+) -> tuple[str, dict[str, str]]:
+    """Parse a Groovydoc comment from ``.nf`` source text.
+
+    When the Nextflow LSP does not return a docstring (common with typed
+    processes), this function extracts the ``/** ... */`` comment block
+    preceding the process definition.
+
+    Supports two documentation styles:
+
+    1. Standard Groovydoc ``@param`` / ``@return`` tags::
+
+        /** @param meta  Sample metadata map
+         *  @return txt  Output text file
+         */
+
+    2. Bullet-list ``Inputs:`` / ``Outputs:`` sections::
+
+        /** Inputs:
+         *   - - meta: sample metadata map
+         *     - bam: input BAM file
+         *  Outputs:
+         *   - - txt: output text file
+         */
+
+    Args:
+        source: The ``.nf`` source file contents.
+        process_name: Name of the process to locate.
+
+    Returns:
+        Tuple of ``(docstring, param_docs)`` where *docstring* is the free-text
+        description and *param_docs* maps param/return names to descriptions.
+        Returns ``("", {})`` if no Groovydoc is found.
+    """
+
+    # Find the process declaration, then look backwards for the nearest /** ... */
+    proc_pattern = re.compile(
+        r"process\s+" + re.escape(process_name) + r"\s*\{",
+    )
+    proc_match = proc_pattern.search(source)
+    if not proc_match:
+        return "", {}
+
+    # Search the text before the process for the last /** ... */ comment
+    preceding = source[: proc_match.start()]
+    # Find all /** ... */ blocks and take the last one (closest to the process)
+    comment_matches = list(re.finditer(r"/\*\*(.*?)\*/", preceding, re.DOTALL))
+    if not comment_matches:
+        return "", {}
+
+    comment_body = comment_matches[-1].group(1)
+    return _parse_groovydoc_comment(comment_body)
+
+
+def _parse_groovydoc_comment(comment_body: str) -> tuple[str, dict[str, str]]:
+    """Parse the body of a ``/** ... */`` Groovydoc comment.
+
+    Handles both ``@param``/``@return`` tags and ``Inputs:``/``Outputs:``
+    bullet-list sections.
+
+    Args:
+        comment_body: The text between ``/**`` and ``*/``.
+
+    Returns:
+        Tuple of ``(docstring, param_docs)``.
+    """
+    lines = comment_body.split("\n")
+    doc_lines: list[str] = []
+    params: dict[str, str] = {}
+    current_section = "description"
+    current_param = ""
+
+    for raw_line in lines:
+        # Strip leading whitespace and * characters (Groovydoc format)
+        line = raw_line.strip()
+        if line.startswith("*"):
+            line = line[1:].strip()
+
+        if not line:
+            if current_section == "description" and doc_lines:
+                doc_lines.append("")  # preserve paragraph breaks
+            continue
+
+        # --- Standard @param / @return tags ---
+
+        # Check for @param tag
+        param_match = re.match(r"@param\s+(\w+)\s*(.*)", line)
+        if param_match:
+            current_section = "param"
+            current_param = param_match.group(1)
+            params[current_param] = param_match.group(2).strip()
+            continue
+
+        # Check for @return tag (named: @return name desc)
+        return_named = re.match(r"@returns?\s+(\w+)\s+(.*)", line)
+        if return_named:
+            current_section = "return"
+            current_param = f"{RETURN_KEY_PREFIX}{return_named.group(1)}"
+            params[current_param] = return_named.group(2).strip()
+            continue
+
+        # Check for @return tag (unnamed: @return desc)
+        return_unnamed = re.match(r"@returns?\s*(.*)", line)
+        if return_unnamed:
+            current_section = "return"
+            current_param = RETURN_KEY_UNNAMED
+            params[RETURN_KEY_UNNAMED] = return_unnamed.group(1).strip()
+            continue
+
+        # --- Bullet-list Inputs: / Outputs: sections ---
+
+        # Check for section headers
+        if re.match(r"Inputs?:", line, re.IGNORECASE):
+            current_section = "input_bullets"
+            continue
+        if re.match(r"Outputs?:", line, re.IGNORECASE):
+            current_section = "output_bullets"
+            continue
+
+        # Check for bullet items: "- name: description" or "- - name: description"
+        bullet_match = re.match(r"-\s*-?\s*(\w+)\s*:\s*(.*)", line)
+        if bullet_match and current_section in ("input_bullets", "output_bullets"):
+            name = bullet_match.group(1)
+            desc = bullet_match.group(2).strip()
+            if current_section == "input_bullets":
+                current_param = name
+                params[name] = desc
+            else:
+                current_param = f"{RETURN_KEY_PREFIX}{name}"
+                params[current_param] = desc
+            continue
+
+        # Handle continuation lines
+        if current_section == "description":
+            # Skip the process name if it's the first line (e.g. "/** SV_PILEUP")
+            if not doc_lines and re.match(r"^[A-Z_0-9]+$", line):
+                continue
+            doc_lines.append(line)
+        elif current_section in ("param", "return", "input_bullets", "output_bullets"):
+            if current_param and line and not line.startswith("@"):
+                params[current_param] += " " + line
+
+    docstring = "\n".join(doc_lines).strip()
+    return docstring, params
