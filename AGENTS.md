@@ -34,8 +34,23 @@ ruff check src/ tests/            # lint
 ruff check --fix src/ tests/      # lint + autofix
 ruff format src/ tests/           # format
 ty check src/                     # type checking (NOT mypy)
-pre-commit run --all-files        # all hooks (ruff, ty, prettier, tailwind)
+prek run --all-files              # all hooks (ruff, ty, prettier, tailwind) — pre-commit also works
 ```
+
+Prek is preferred over pre-commit; both consume the same `.pre-commit-config.yaml`.
+
+### Rebuilding Tailwind CSS
+
+If you modify `src/nf_docs/templates/html.html` or `build-assets/input.css`, rebuild the committed
+CSS at `src/nf_docs/templates/tailwind.css`:
+
+```bash
+cd build-assets && npm install && npm run build   # first time
+cd build-assets && npm run build                  # subsequent
+```
+
+The pre-commit hook does this automatically. The generated CSS is committed so end users don't need
+Node.
 
 ### Running the CLI
 
@@ -200,4 +215,18 @@ src/nf_docs/
   content hash of all `.nf` + config + schema + README files.
 - **Rendering**: Strategy pattern via `BaseRenderer` ABC with `render()`, `render_to_file()`,
   `render_to_directory()`. Factory function `get_renderer(format)` returns the appropriate renderer.
-  HTML uses a single Jinja2 template with inline CSS (Tailwind) and JavaScript for search.
+  HTML uses a single Jinja2 template with inline CSS (Tailwind) and JavaScript for search. Adding a
+  new output format means updating `get_renderer()`, the CLI's `--format` choices, and tests.
+- **Config parsing**: `config_parser.py` shells out to `nextflow config -flat`. `nextflow_env.py`
+  sets an isolated `NXF_HOME` so this doesn't pollute the user's Nextflow state.
+- **Pre-commit hook entry**: `.pre-commit-hooks.yaml` exposes the CLI as the `nf-docs` hook with
+  default `args: [., --format, html]`, triggered by changes to `.nf`, `nextflow.config`,
+  `nextflow_schema.json`, `meta.yml`, or README files. Guarded by `tests/test_pre_commit_hooks.py`.
+
+## Test pipelines
+
+Useful real-world targets for manual testing:
+
+- [nextflow-io/rnaseq-nf](https://github.com/nextflow-io/rnaseq-nf) — simple, good for first checks
+- [nf-core/fetchngs](https://github.com/nf-core/fetchngs) — small but real
+- [nf-core/rnaseq](https://github.com/nf-core/rnaseq) — complex, stress test
