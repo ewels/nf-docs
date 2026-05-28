@@ -7,7 +7,7 @@ to extract inputs, outputs, and other metadata.
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 # Traditional Nextflow input qualifiers that should not be treated as typed variable names.
 # Used to prevent false matches like "each: sample" being parsed as typed input "each" of type "sample".
@@ -17,13 +17,12 @@ _TRADITIONAL_QUALIFIERS = frozenset({"val", "path", "file", "env", "stdin", "tup
 RETURN_KEY_PREFIX = "_return_"
 RETURN_KEY_UNNAMED = "_return"
 
-# Regexes for extracting input/output sections from a process body.
+# Regex for extracting the input section from a process body. The output
+# section is extracted by the brace-aware `_extract_output_block` instead, so
+# typed `Record { ... }` declarations are not truncated at an embedded brace.
 # The terminators cover every Nextflow process section keyword.
 _INPUT_SECTION_RE = re.compile(
     r"input:\s*(.*?)(?:output:|topic:|script:|shell:|exec:|\})", re.DOTALL
-)
-_OUTPUT_SECTION_RE = re.compile(
-    r"output:\s*(.*?)(?:topic:|script:|shell:|exec:|when:|\})", re.DOTALL
 )
 
 logger = logging.getLogger(__name__)
@@ -109,10 +108,11 @@ def parse_process_hover(hover_text: str) -> ParsedProcess | None:
         input_block = input_match.group(1)
         process.inputs = _parse_input_declarations(input_block)
 
-    # Extract output section
-    output_match = _OUTPUT_SECTION_RE.search(code)
-    if output_match:
-        output_block = output_match.group(1)
+    # Extract output section (brace-aware: supports typed Record declarations
+    # and multiple output channels, which a naive regex truncates at the first
+    # closing brace).
+    output_block = _extract_output_block(code)
+    if output_block is not None:
         process.outputs = _parse_output_declarations(output_block)
 
     return process
@@ -221,31 +221,104 @@ def _typed_to_qualifier(type_name: str) -> str:
         type_name: The type annotation (e.g. ``Path``, ``Map``, ``Integer``, ``?``).
 
     Returns:
-        The corresponding traditional qualifier (``val``, ``path``, etc.).
+        The corresponding traditional qualifier (``val``, ``path``, etc.), or
+        ``record`` for record-typed channels, which have no traditional
+        single-qualifier equivalent.
     """
     path_types = {"Path", "File"}
     if type_name in path_types:
         return "path"
+    if type_name == "Record":
+        return "record"
     # Everything else maps to val (Map, Integer, String, Boolean, ?, etc.)
     return "val"
 
 
+def _extract_output_block(code: str) -> str | None:
+    """Extract the ``output:`` section body from process hover code.
+
+    Brace-aware so typed ``Record { ... }`` declarations and multiple output
+    channels are captured in full. The section ends at the next process-section
+    keyword or at the process's own closing brace (depth 0). Any declaration
+    sharing the ``output:`` line itself (e.g. ``output: path "x.txt", emit: x``)
+    is included as the first line of the returned block.
+    """
+    # Anchor to a line start (optionally indented) so an `output:` appearing
+    # mid-line — e.g. inside a script string — is not mistaken for the section
+    # label. `[ \t]*` consumes only leading whitespace, then requires `output:`
+    # immediately, so `echo "output: ..."` does not match.
+    m = re.search(r"^[ \t]*output:([^\n]*)\n", code, re.MULTILINE)
+    if not m:
+        return None
+    terminators = ("input:", "topic:", "script:", "shell:", "exec:", "when:")
+    lines: list[str] = []
+    depth = 0
+    # Include any declaration that shares the `output:` line, then the lines
+    # that follow it.
+    remainder = m.group(1)
+    after = code[m.end() :].splitlines()
+    candidates = [remainder, *after] if remainder.strip() else after
+    for line in candidates:
+        stripped = line.strip()
+        if depth == 0:
+            if stripped == "}" or any(stripped.startswith(t) for t in terminators):
+                break
+        lines.append(line)
+        depth += line.count("{") - line.count("}")
+        if depth < 0:
+            break
+    return "\n".join(lines)
+
+
 def _parse_output_declarations(block: str) -> list[ParsedOutput]:
-    """Parse output declarations from an output block."""
-    outputs = []
+    """Parse output declarations from an output block.
 
-    # Split by lines and parse each declaration
-    lines = block.strip().split("\n")
-
-    for line in lines:
-        line = line.strip()
+    Brace-aware: typed outputs are declared as ``channel: Record { ... }``.
+    Only top-level (depth 0) declarations create outputs; the record's direct
+    field lines (depth 1) are collected into that output's ``name`` so the
+    rendered table shows the record's shape (e.g. ``meta: Map, bam: Path``).
+    Deeper-nested lines are not expanded, and field lines never become
+    separate outputs.
+    """
+    record_qualifier = _typed_to_qualifier("Record")
+    outputs: list[ParsedOutput] = []
+    depth = 0
+    # When a typed-record line opens at depth 0, buffer it here and only emit
+    # the finalized ParsedOutput once the record's closing `}` returns us to
+    # depth 0 — that way `name` is set in the constructor (one-way dataflow,
+    # no post-hoc mutation of an already-appended output).
+    pending: ParsedOutput | None = None
+    fields: list[str] = []
+    for raw in block.strip().split("\n"):
+        line = raw.strip()
         if not line:
             continue
-
-        parsed = _parse_single_output(line)
-        if parsed:
-            outputs.append(parsed)
-
+        if depth == 0:
+            parsed = _parse_single_output(line)
+            if parsed:
+                # Key off the parsed type (the single source of truth) plus a
+                # literal `{` so a simple typed output of `Record` (no brace)
+                # does not start field collection.
+                is_record = parsed.type == record_qualifier and "{" in line
+                if is_record:
+                    pending = parsed
+                    fields = []
+                else:
+                    outputs.append(parsed)
+        elif pending is not None and depth == 1 and line not in ("{", "}"):
+            # A direct field of the open record (e.g. "meta: Map"); drop any
+            # record-opening brace and anything after it so the captured field
+            # text is just the declaration.
+            field = line.split("{", 1)[0].strip()
+            if field:
+                fields.append(field)
+        depth += line.count("{") - line.count("}")
+        if depth <= 0:
+            depth = 0
+            if pending is not None:
+                outputs.append(replace(pending, name=", ".join(fields) if fields else pending.name))
+                pending = None
+                fields = []
     return outputs
 
 
@@ -265,6 +338,26 @@ def _parse_single_output(line: str) -> ParsedOutput | None:
     # Skip topic publish lines: >> 'topic_name'
     if line.startswith(">>"):
         return None
+
+    # Handle typed record output channel (modern typed DSL): "result: Record {"
+    # The record's field lines follow and are skipped by the brace-aware
+    # _parse_output_declarations loop.
+    typed_record_match = re.match(r"(\w+)\s*:\s*(Record)\b", line)
+    if typed_record_match:
+        emit = typed_record_match.group(1)
+        return ParsedOutput(
+            name=emit, type=_typed_to_qualifier(typed_record_match.group(2)), emit=emit
+        )
+
+    # Handle typed simple output channel: "versions: Path", "count: Integer"
+    typed_simple_match = re.match(r"(\w+)\s*:\s*(\w+)\s*$", line)
+    if typed_simple_match and typed_simple_match.group(1) not in _TRADITIONAL_QUALIFIERS:
+        emit = typed_simple_match.group(1)
+        return ParsedOutput(
+            name=emit,
+            type=_typed_to_qualifier(typed_simple_match.group(2)),
+            emit=emit,
+        )
 
     # Handle named assignment outputs: name = tuple(meta, file("*_svpileup.txt"))
     # or: name = file("*.bam"), name = val(something)
@@ -515,13 +608,15 @@ def enrich_outputs_from_source(
     if not proc_body:
         return outputs
 
-    # Extract the output section from the source process body
-    output_match = _OUTPUT_SECTION_RE.search(proc_body)
-    if not output_match:
+    # Extract the output section from the source process body (brace-aware, so
+    # multiple channels and brace-bearing globs like "*_{R1,R2}.fastq" are not
+    # truncated at an embedded brace).
+    output_block = _extract_output_block(proc_body)
+    if output_block is None:
         return outputs
 
     # Parse the source output declarations
-    source_outputs = _parse_output_declarations(output_match.group(1))
+    source_outputs = _parse_output_declarations(output_block)
 
     # Build a lookup by emit name
     source_by_emit: dict[str, ParsedOutput] = {}

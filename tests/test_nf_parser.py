@@ -3,6 +3,7 @@
 from nf_docs.nf_parser import (
     ParsedInput,
     ParsedOutput,
+    _extract_output_block,
     _parse_named_output,
     _parse_single_input,
     _parse_single_output,
@@ -11,6 +12,25 @@ from nf_docs.nf_parser import (
     parse_process_hover,
     parse_workflow_hover,
 )
+
+
+class TestExtractOutputBlock:
+    """Tests for _extract_output_block."""
+
+    def test_finds_indented_section_label(self):
+        code = "process P {\n  output:\n  result: Record {\n    x: Path\n}\n}\n"
+        block = _extract_output_block(code)
+        assert block is not None
+        assert "result: Record {" in block
+
+    def test_ignores_output_keyword_mid_line(self):
+        """`output:` inside a script string is not the section label."""
+        code = 'process P {\n  script:\n  """\n  echo "output: done"\n  """\n}\n'
+        assert _extract_output_block(code) is None
+
+    def test_returns_none_when_no_output_section(self):
+        code = "process P {\n  input:\n  x: Path\n}\n"
+        assert _extract_output_block(code) is None
 
 
 class TestParseSingleInput:
@@ -175,6 +195,9 @@ class TestTypedToQualifier:
 
     def test_boolean_type(self):
         assert _typed_to_qualifier("Boolean") == "val"
+
+    def test_record_type(self):
+        assert _typed_to_qualifier("Record") == "record"
 
 
 class TestParseSingleOutput:
@@ -524,6 +547,178 @@ process AGGREGATE_SV_PILEUP {
         assert len(result.outputs) == 1
         assert result.outputs[0].emit == "txt"
 
+    def test_typed_record_output_single_channel(self):
+        """Modern typed hover: `result: Record { ... }` -> one emit channel,
+        record fields must NOT leak as separate outputs."""
+        hover = """```nextflow
+process SV_PILEUP {
+  input:
+  Record {
+    meta: Map
+    bam: Path
+  }
+
+  output:
+  result: Record {
+    meta: Map
+    bam: Path
+    txt: Path
+}
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert result.outputs[0].emit == "result"
+        # The record's direct fields are surfaced in `name`.
+        assert result.outputs[0].name == "meta: Map, bam: Path, txt: Path"
+        assert result.outputs[0].type == "record"
+
+    def test_typed_simple_output_channel(self):
+        """A non-record typed output `versions: Path` -> one path channel."""
+        hover = """```nextflow
+process TOOL {
+  output:
+  versions: Path
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert result.outputs[0].emit == "versions"
+        assert result.outputs[0].type == "path"
+
+    def test_typed_multiple_record_output_channels(self):
+        """Two `Record { ... }` channels must both be captured (the old regex
+        truncated at the first record's closing brace)."""
+        hover = """```nextflow
+process MULTI {
+  output:
+  first: Record {
+    meta: Map
+    bam: Path
+}
+  second: Record {
+    meta: Map
+    csv: Path
+}
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert [o.emit for o in result.outputs] == ["first", "second"]
+        assert all(o.type == "record" for o in result.outputs)
+        assert [o.name for o in result.outputs] == [
+            "meta: Map, bam: Path",
+            "meta: Map, csv: Path",
+        ]
+
+    def test_typed_simple_output_non_path_maps_to_val(self):
+        """A non-path typed output channel maps to the `val` qualifier."""
+        hover = """```nextflow
+process TOOL {
+  output:
+  count: Integer
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert result.outputs[0].emit == "count"
+        assert result.outputs[0].type == "val"
+
+    def test_output_declaration_on_same_line_as_output_keyword(self):
+        """A declaration sharing the `output:` line must not be dropped."""
+        hover = """```nextflow
+process INLINE {
+  output: path "versions.yml", emit: versions
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert result.outputs[0].emit == "versions"
+
+    def test_mixed_typed_record_and_traditional_outputs(self):
+        """A typed `Record` channel and a traditional named output coexist in
+        one block; the depth gate and matcher ordering must both apply."""
+        hover = """```nextflow
+process MIXED {
+  output:
+  result: Record {
+    meta: Map
+    bam: Path
+}
+  versions = path("versions.yml")
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert [o.emit for o in result.outputs] == ["result", "versions"]
+        assert [o.type for o in result.outputs] == ["record", "path"]
+
+    def test_nested_record_output_does_not_leak_fields(self):
+        """A nested `Record { Record { ... } }` yields one channel; no inner
+        field (at any depth) leaks as a separate output."""
+        hover = """```nextflow
+process NESTED {
+  output:
+  result: Record {
+    meta: Map
+    inner: Record {
+      x: Integer
+    }
+}
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert result.outputs[0].emit == "result"
+        assert result.outputs[0].type == "record"
+        # Direct fields are surfaced; the nested record is not expanded.
+        assert result.outputs[0].name == "meta: Map, inner: Record"
+
+    def test_record_field_with_whitespace_after_brace(self):
+        """A trailing space after the opening `{` of a nested record must not
+        leak into the captured field text."""
+        # Note: the trailing space after `{` on the `inner: Record {` line is
+        # the case being guarded.
+        hover = (
+            "```nextflow\n"
+            "process P {\n"
+            "  output:\n"
+            "  result: Record {\n"
+            "    meta: Map\n"
+            "    inner: Record { \n"
+            "      x: Integer\n"
+            "    }\n"
+            "}\n"
+            "}\n"
+            "```"
+        )
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert "{" not in result.outputs[0].name
+        assert result.outputs[0].name == "meta: Map, inner: Record"
+
+    def test_empty_record_output_name_falls_back_to_emit(self):
+        """A typed record with no fields yields one channel whose `name` falls
+        back to the emit (there is no field shape to surface)."""
+        hover = """```nextflow
+process P {
+  output:
+  result: Record {}
+}
+```"""
+        result = parse_process_hover(hover)
+        assert result is not None
+        assert len(result.outputs) == 1
+        assert result.outputs[0].emit == "result"
+        assert result.outputs[0].type == "record"
+        assert result.outputs[0].name == "result"
+
 
 class TestParseWorkflowHover:
     """Tests for parse_workflow_hover."""
@@ -642,3 +837,25 @@ process SV_PILEUP {
         assert result[0].emit == "versions"
         assert result[0].type == "path"
         assert result[0].name == "versions.yml"
+
+    def test_brace_in_glob_does_not_truncate_source_outputs(self):
+        """A brace-expansion glob like "*_{R1,R2}.fastq" must not truncate the
+        source output section, so all outputs after it are still enriched."""
+        source = (
+            "process GLOBS {\n"
+            "  output:\n"
+            '  reads = path("*_{R1,R2}.fastq")\n'
+            '  versions = path("versions.yml")\n'
+            "\n"
+            "  script:\n"
+            '  ""\n'
+            "}\n"
+        )
+        bare_outputs = [
+            ParsedOutput(name="reads", type="", emit="reads"),
+            ParsedOutput(name="versions", type="", emit="versions"),
+        ]
+        result = enrich_outputs_from_source(bare_outputs, source, "GLOBS")
+
+        assert [o.emit for o in result] == ["reads", "versions"]
+        assert all(o.type == "path" for o in result)
