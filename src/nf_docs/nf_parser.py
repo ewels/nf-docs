@@ -17,10 +17,10 @@ _TRADITIONAL_QUALIFIERS = frozenset({"val", "path", "file", "env", "stdin", "tup
 RETURN_KEY_PREFIX = "_return_"
 RETURN_KEY_UNNAMED = "_return"
 
-# Regex for extracting the input section from a process body. The output
-# section is extracted by the brace-aware `_extract_output_block` instead, so
-# typed `Record { ... }` declarations are not truncated at an embedded brace.
+# Regex for extracting the input section from a process body.
 # The terminators cover every Nextflow process section keyword.
+# The output section is extracted by the brace-aware `_extract_output_block` instead, so
+# typed `Record { ... }` declarations are not truncated at an embedded brace.
 _INPUT_SECTION_RE = re.compile(
     r"input:\s*(.*?)(?:output:|topic:|script:|shell:|exec:|\})", re.DOTALL
 )
@@ -108,9 +108,7 @@ def parse_process_hover(hover_text: str) -> ParsedProcess | None:
         input_block = input_match.group(1)
         process.inputs = _parse_input_declarations(input_block)
 
-    # Extract output section (brace-aware: supports typed Record declarations
-    # and multiple output channels, which a naive regex truncates at the first
-    # closing brace).
+    # Extract output section
     output_block = _extract_output_block(code)
     if output_block is not None:
         process.outputs = _parse_output_declarations(output_block)
@@ -235,13 +233,11 @@ def _typed_to_qualifier(type_name: str) -> str:
 
 
 def _extract_output_block(code: str) -> str | None:
-    """Extract the ``output:`` section body from process hover code.
+    """Extract the ``output:`` section body.
 
     Brace-aware so typed ``Record { ... }`` declarations and multiple output
     channels are captured in full. The section ends at the next process-section
-    keyword or at the process's own closing brace (depth 0). Any declaration
-    sharing the ``output:`` line itself (e.g. ``output: path "x.txt", emit: x``)
-    is included as the first line of the returned block.
+    keyword or at the process's own closing brace.
     """
     # Anchor to a line start (optionally indented) so an `output:` appearing
     # mid-line — e.g. inside a script string — is not mistaken for the section
@@ -274,8 +270,8 @@ def _parse_output_declarations(block: str) -> list[ParsedOutput]:
     """Parse output declarations from an output block.
 
     Brace-aware: typed outputs are declared as ``channel: Record { ... }``.
-    Only top-level (depth 0) declarations create outputs; the record's direct
-    field lines (depth 1) are collected into that output's ``name`` so the
+    Only top-level declarations create outputs; the record's direct
+    field lines are collected into that output's ``name`` so the
     rendered table shows the record's shape (e.g. ``meta: Map, bam: Path``).
     Deeper-nested lines are not expanded, and field lines never become
     separate outputs.
@@ -285,8 +281,7 @@ def _parse_output_declarations(block: str) -> list[ParsedOutput]:
     depth = 0
     # When a typed-record line opens at depth 0, buffer it here and only emit
     # the finalized ParsedOutput once the record's closing `}` returns us to
-    # depth 0 — that way `name` is set in the constructor (one-way dataflow,
-    # no post-hoc mutation of an already-appended output).
+    # depth 0.
     pending: ParsedOutput | None = None
     fields: list[str] = []
     for raw in block.strip().split("\n"):
@@ -296,8 +291,8 @@ def _parse_output_declarations(block: str) -> list[ParsedOutput]:
         if depth == 0:
             parsed = _parse_single_output(line)
             if parsed:
-                # Key off the parsed type (the single source of truth) plus a
-                # literal `{` so a simple typed output of `Record` (no brace)
+                # Key off the parsed type plus a literal `{`
+                # so a simple typed output of `Record` (no brace)
                 # does not start field collection.
                 is_record = parsed.type == record_qualifier and "{" in line
                 if is_record:
@@ -339,9 +334,8 @@ def _parse_single_output(line: str) -> ParsedOutput | None:
     if line.startswith(">>"):
         return None
 
-    # Handle typed record output channel (modern typed DSL): "result: Record {"
-    # The record's field lines follow and are skipped by the brace-aware
-    # _parse_output_declarations loop.
+    # Handle typed record output channel: "result: Record"
+    # `name` here is a fallback for empty records.
     typed_record_match = re.match(r"(\w+)\s*:\s*(Record)\b", line)
     if typed_record_match:
         emit = typed_record_match.group(1)

@@ -589,8 +589,7 @@ process TOOL {
         assert result.outputs[0].type == "path"
 
     def test_typed_multiple_record_output_channels(self):
-        """Two `Record { ... }` channels must both be captured (the old regex
-        truncated at the first record's closing brace)."""
+        """Two `Record { ... }` channels must both be captured."""
         hover = """```nextflow
 process MULTI {
   output:
@@ -700,7 +699,6 @@ process NESTED {
         result = parse_process_hover(hover)
         assert result is not None
         assert len(result.outputs) == 1
-        assert "{" not in result.outputs[0].name
         assert result.outputs[0].name == "meta: Map, inner: Record"
 
     def test_empty_record_output_name_falls_back_to_emit(self):
