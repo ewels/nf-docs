@@ -1,5 +1,17 @@
 # Changelog
 
+## [Version 0.4.0](https://github.com/ewels/nf-docs/releases/tag/v0.4.0) - 2026-05-29
+
+### Added
+
+- Parse typed process outputs from the Nextflow Language Server
+  [#12](https://github.com/ewels/nf-docs/pull/12)
+
+### Changed
+
+- Pin GitHub Actions to commit SHAs and harden workflows against zizmor findings
+  [#10](https://github.com/ewels/nf-docs/pull/10)
+
 ## [Version 0.3.0](https://github.com/ewels/nf-docs/releases/tag/v0.3.0) - 2026-05-20
 
 - Single-process docs if run on an individual module [#9](https://github.com/ewels/nf-docs/pull/9)
