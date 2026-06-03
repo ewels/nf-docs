@@ -32,7 +32,7 @@
       "outputs": [],
       "calls": [],
       "is_entry": true,
-      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/main.nf#L35-L51"
+      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/main.nf#L35-L51"
     }
   ],
   "processes": [
@@ -56,9 +56,16 @@
           "qualifier": "Path"
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "meta: Map, bedpe: Path",
+          "type": "record",
+          "description": "Record of meta and the BEDPE format output file (bedpe)",
+          "emit": "bedpe"
+        }
+      ],
       "directives": {},
-      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L34"
+      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L34"
     },
     {
       "name": "AGGREGATE_SV_PILEUP",
@@ -86,9 +93,16 @@
           "qualifier": "Path"
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "meta: Map, txt: Path",
+          "type": "record",
+          "description": "Record of meta and the aggregated SvPileup output file (txt)",
+          "emit": "aggregated"
+        }
+      ],
       "directives": {},
-      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/aggregate_sv_pileup.nf#L12-L36"
+      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup.nf#L12-L36"
     },
     {
       "name": "COORDINATE_SORT",
@@ -110,9 +124,16 @@
           "qualifier": "Path"
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "meta: Map, bam: Path",
+          "type": "record",
+          "description": "Record of meta and the coordinate-sorted BAM file (bam)",
+          "emit": "sorted"
+        }
+      ],
       "directives": {},
-      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/coordinate_sort.nf#L10-L31"
+      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/coordinate_sort.nf#L10-L31"
     },
     {
       "name": "SV_PILEUP",
@@ -134,15 +155,22 @@
           "qualifier": "Path"
         }
       ],
-      "outputs": [],
+      "outputs": [
+        {
+          "name": "meta: Map, bam: Path, txt: Path",
+          "type": "record",
+          "description": "Record of meta, the SvPileup BAM file (bam), and the breakpoint output file (txt)",
+          "emit": "result"
+        }
+      ],
       "directives": {},
-      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/sv_pileup.nf#L10-L35"
+      "source_url": "https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/sv_pileup.nf#L10-L35"
     }
   ],
   "functions": [],
   "generated_by": {
-    "nf_docs_version": "0.3.0",
-    "generated_at": "2026-05-27T21:23:03.433683+00:00",
+    "nf_docs_version": "0.4.0",
+    "generated_at": "2026-06-03T18:54:03.207725+00:00",
     "nextflow_url": "https://nextflow.io",
     "nf_docs_url": "https://github.com/ewels/nf-docs"
   }

@@ -1584,7 +1584,7 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
               </span>
                
               <a
-                href="https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/main.nf#L35-L51"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/main.nf#L35-L51"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1657,7 +1657,7 @@ directory named after the sample's <code>meta.id</code>. For each sample the wor
               <span class="font-bold text-primary-dark">AGGREGATE_SV_PILEUP</span>
               
               <a
-                href="https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/aggregate_sv_pileup.nf#L12-L36"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup.nf#L12-L36"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1768,6 +1768,56 @@ using fgsv AggregateSvPileup.</p></div>
             
 
             <!-- Outputs section - combine LSP outputs with meta.yml descriptions -->
+            
+            <h3 class="text-lg font-semibold mt-4 mb-2">Outputs</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse mb-4">
+                <thead>
+                  <tr>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Name
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Type
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Emit
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                    
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>txt:<wbr> <wbr>Path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >record</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >aggregated</code
+                      >
+                      
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Record of meta and the aggregated SvPileup output file (txt)</p></div>
+                      
+                    </td>
+                  </tr>
+                   
+                </tbody>
+              </table>
+            </div>
              
 
             <!-- Authors/Maintainers (from meta.yml) -->
@@ -1786,7 +1836,7 @@ using fgsv AggregateSvPileup.</p></div>
               <span class="font-bold text-primary-dark">AGGREGATE_SV_PILEUP_TO_BEDPE</span>
               
               <a
-                href="https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L34"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L34"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1879,6 +1929,56 @@ AggregateSvPileupToBedPE.</p></div>
             
 
             <!-- Outputs section - combine LSP outputs with meta.yml descriptions -->
+            
+            <h3 class="text-lg font-semibold mt-4 mb-2">Outputs</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse mb-4">
+                <thead>
+                  <tr>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Name
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Type
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Emit
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                    
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>bedpe:<wbr> <wbr>Path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >record</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >bedpe</code
+                      >
+                      
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Record of meta and the BEDPE format output file (bedpe)</p></div>
+                      
+                    </td>
+                  </tr>
+                   
+                </tbody>
+              </table>
+            </div>
              
 
             <!-- Authors/Maintainers (from meta.yml) -->
@@ -1897,7 +1997,7 @@ AggregateSvPileupToBedPE.</p></div>
               <span class="font-bold text-primary-dark">COORDINATE_SORT</span>
               
               <a
-                href="https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/coordinate_sort.nf#L10-L31"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/coordinate_sort.nf#L10-L31"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1989,6 +2089,56 @@ AggregateSvPileupToBedPE.</p></div>
             
 
             <!-- Outputs section - combine LSP outputs with meta.yml descriptions -->
+            
+            <h3 class="text-lg font-semibold mt-4 mb-2">Outputs</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse mb-4">
+                <thead>
+                  <tr>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Name
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Type
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Emit
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                    
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>bam:<wbr> <wbr>Path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >record</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >sorted</code
+                      >
+                      
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Record of meta and the coordinate-sorted BAM file (bam)</p></div>
+                      
+                    </td>
+                  </tr>
+                   
+                </tbody>
+              </table>
+            </div>
              
 
             <!-- Authors/Maintainers (from meta.yml) -->
@@ -2007,7 +2157,7 @@ AggregateSvPileupToBedPE.</p></div>
               <span class="font-bold text-primary-dark">SV_PILEUP</span>
               
               <a
-                href="https://github.com/fg-labs/nf-fgsv/blob/f7298efb052edc211b63921113eaa18d78d85aa2/modules/sv_pileup.nf#L10-L35"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/sv_pileup.nf#L10-L35"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -2099,6 +2249,56 @@ AggregateSvPileupToBedPE.</p></div>
             
 
             <!-- Outputs section - combine LSP outputs with meta.yml descriptions -->
+            
+            <h3 class="text-lg font-semibold mt-4 mb-2">Outputs</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full border-collapse mb-4">
+                <thead>
+                  <tr>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Name
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Type
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Emit
+                    </th>
+                    <th class="text-left p-3 border-b border-slate-200 bg-slate-100 font-semibold">
+                      Description
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                    
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>bam:<wbr> <wbr>Path,<wbr> <wbr>txt:<wbr> <wbr>Path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >record</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >result</code
+                      >
+                      
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Record of meta, the SvPileup BAM file (bam), and the breakpoint output file (txt)</p></div>
+                      
+                    </td>
+                  </tr>
+                   
+                </tbody>
+              </table>
+            </div>
              
 
             <!-- Authors/Maintainers (from meta.yml) -->
@@ -2182,8 +2382,8 @@ AggregateSvPileupToBedPE.</p></div>
               <a href="https://github.com/ewels/nf-docs" target="_blank" rel="noopener noreferrer"
                 >nf-docs</a
               >
-              <span class="nf-docs-version">v0.3.0</span>
-              <span>on 2026-05-27 21:22:19 UTC</span>
+              <span class="nf-docs-version">v0.4.0</span>
+              <span>on 2026-06-03 18:53:19 UTC</span>
             </div>
           </div>
         </footer>
