@@ -182,7 +182,7 @@ src/nf_docs/
 ├── api.py               # High-level library API: extract() / render() / generate()
 ├── cache.py             # XDG-compliant caching with content hashing
 ├── cli.py               # CLI entry point (rich-click)
-├── output.py            # Output path policy shared by the CLI and api.py
+├── output.py            # Source/output path policy shared by the CLI and api.py (leaf module)
 ├── config.py            # User config from ~/.config/nf-docs/config.yaml
 ├── config_parser.py     # Parse nextflow.config via `nextflow config -flat`
 ├── extractor.py         # Main extraction orchestration
@@ -218,14 +218,23 @@ src/nf_docs/
 - **Rendering**: Strategy pattern via `BaseRenderer` ABC with `render()`, `render_to_file()`,
   `render_to_directory()`. Factory function `get_renderer(format)` returns the appropriate renderer.
   HTML uses a single Jinja2 template with inline CSS (Tailwind) and JavaScript for search. Adding a
-  new output format means updating `get_renderer()`, the CLI's `--format` choices, and tests.
+  new output format means updating `RENDERERS` in `renderers/__init__.py`,
+  `SINGLE_FILE_OUTPUT_POLICY` and (if it writes a directory) `DIRECTORY_FORMATS` in `output.py`, the
+  CLI's `--format` choices, and tests. Format aliases live only in `output.FORMAT_ALIASES`;
+  `get_renderer()` resolves through `normalize_format()` so there is one alias table.
 - **Config parsing**: `config_parser.py` shells out to `nextflow config -flat`. `nextflow_env.py`
   sets an isolated `NXF_HOME` so this doesn't pollute the user's Nextflow state.
-- **Two entry points**: `cli.py` (rich-click) and `api.py` (library). Both go through `output.py`
-  for path/format decisions, so behaviour stays in sync. Keep console output and `sys.exit()` in
+- **Two entry points**: `cli.py` (rich-click) and `api.py` (library). All source/output path and
+  format decisions live in `output.py`, and `cli.py` extracts via `api.extract()`, so the two stay
+  in sync by construction rather than by discipline. Keep console output and `sys.exit()` in
   `cli.py` only — core modules log via `logging` and raise exceptions. The CLI reads the user's
-  `~/.config/nf-docs/config.yaml` and passes it in explicitly; `api.py` uses `NfDocsConfig()`
-  defaults so library calls are reproducible.
+  `~/.config/nf-docs/config.yaml` and passes it to `PipelineExtractor(config=...)`; `api.py` uses
+  `NfDocsConfig()` defaults so library calls are reproducible. There is deliberately no global
+  config accessor — inject an `NfDocsConfig` instead of reintroducing ambient state.
+- **Lazy exports**: `__init__.py` eagerly imports only `models`; everything else in `__all__` is
+  resolved on first access via PEP 562 `__getattr__`. This keeps `import nf_docs` at ~90 ms instead
+  of ~260 ms for callers that only want the models. Add new public names to both `_LAZY_EXPORTS` and
+  the `TYPE_CHECKING` block so type checkers and IDEs still see them.
 - **Public API**: everything in `nf_docs.__all__` plus `nf_docs.models`. Adding to it is a
   commitment — update `docs/python-api.md` and `tests/test_api.py` alongside.
 - **Pre-commit hook entry**: `.pre-commit-hooks.yaml` exposes the CLI as the `nf-docs` hook with

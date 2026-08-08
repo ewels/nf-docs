@@ -22,10 +22,19 @@ from rich.progress import (
 )
 
 from nf_docs import __version__
+from nf_docs.api import extract as extract_pipeline
 from nf_docs.config import load_config
-from nf_docs.extractor import ExtractionError, PipelineExtractor, find_pipeline_root
+from nf_docs.extractor import ExtractionError, PipelineExtractor
 from nf_docs.lsp_client import LSPError
-from nf_docs.output import normalize_format, resolve_single_file_output, resolve_source
+from nf_docs.output import (
+    DIRECTORY_FORMATS,
+    default_output_dir,
+    normalize_format,
+    resolve_data_file_path,
+    resolve_single_file_path,
+    resolve_source,
+    streams_by_default,
+)
 from nf_docs.progress import ProgressUpdate
 from nf_docs.renderers import get_renderer
 
@@ -263,21 +272,14 @@ def generate(
 
     try:
         with ExtractionProgressDisplay(console) as progress_display:
-            # Extract documentation
-            extractor = PipelineExtractor(
-                workspace_path=find_pipeline_root(pipeline_path)
-                if single_file_mode
-                else pipeline_path,
+            pipeline = extract_pipeline(
+                pipeline_path,
+                config=user_config,
                 language_server_jar=language_server,
                 nextflow_path=nextflow_path,
-                use_cache=True,
                 force_refresh=no_cache,
                 progress_callback=progress_display.callback,
-                target_file=pipeline_path if single_file_mode else None,
-                config=user_config,
             )
-
-            pipeline = extractor.extract()
 
         # Check if any content was found
         if not pipeline.has_content():
@@ -308,35 +310,31 @@ def generate(
             renderer = renderer_class(title=title)
 
             if single_file_mode:
-                output_file, rendered = resolve_single_file_output(
-                    renderer, pipeline, pipeline_path, output_format, output_path
+                rendered = renderer.render_single_file(pipeline)
+                # Formats with no natural single-file name go to stdout unless
+                # the user asked for a specific output path.
+                output_file = (
+                    None
+                    if output_path is None and streams_by_default(output_format)
+                    else resolve_single_file_path(pipeline_path, output_format, output_path)
                 )
                 progress.update(task, description="Rendering complete")
             elif output_path:
                 # Write to file/directory
-                if output_format in ("markdown", "html", "table"):
+                if output_format in DIRECTORY_FORMATS:
                     created_files = renderer.render_to_directory(pipeline, output_path)
-                    progress.update(task, description="Rendering complete")
                 else:
-                    # JSON/YAML - write to single file
-                    # If output_path is a directory, use default filename
-                    if output_path.is_dir():
-                        ext = "json" if output_format == "json" else "yaml"
-                        output_file = output_path / f"pipeline.{ext}"
-                    else:
-                        output_file = output_path
-                        output_file.parent.mkdir(parents=True, exist_ok=True)
+                    # JSON/YAML - write to a single data file
+                    output_file = resolve_data_file_path(pipeline_path, output_format, output_path)
                     renderer.render_to_file(pipeline, output_file)
-                    progress.update(task, description="Rendering complete")
+                progress.update(task, description="Rendering complete")
             else:
                 # Write to stdout or default directory
-                if output_format in ("json", "yaml"):
-                    pass  # Will write to stdout after progress
-                else:
-                    # Write to default directory
-                    default_dir = pipeline_path / "docs"
+                if output_format in DIRECTORY_FORMATS:
+                    default_dir = default_output_dir(pipeline_path)
                     created_files = renderer.render_to_directory(pipeline, default_dir)
                     progress.update(task, description="Rendering complete")
+                # json/yaml stream to stdout after the progress display is gone
 
         # Output results after progress display is gone
         if single_file_mode:
@@ -351,7 +349,7 @@ def generate(
                 )
                 console.print(f"  - {_display_path(output_file)}")
         elif output_path:
-            if output_format in ("markdown", "html", "table"):
+            if output_format in DIRECTORY_FORMATS:
                 file_word = "file" if len(created_files) == 1 else "files"
                 console.print(
                     f"[green]Created {len(created_files)} {file_word} in {output_path}[/green]"
@@ -361,16 +359,16 @@ def generate(
             else:
                 console.print(f"[green]Written to {output_file}[/green]")
         else:
-            if output_format in ("json", "yaml"):
-                # Write to stdout
-                click.echo(renderer.render(pipeline))
-            else:
+            if output_format in DIRECTORY_FORMATS:
                 file_word = "file" if len(created_files) == 1 else "files"
                 console.print(
                     f"[green]Created {len(created_files)} {file_word} in {default_dir}[/green]"
                 )
                 for f in created_files:
                     console.print(f"  - ./{_display_path(f)}")
+            else:
+                # Write to stdout
+                click.echo(renderer.render(pipeline))
 
     except LSPError as e:
         console.print(f"[red]Language Server error: {e}[/red]")

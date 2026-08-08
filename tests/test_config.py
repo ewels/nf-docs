@@ -11,7 +11,6 @@ from nf_docs.config import (
     get_example_config,
     get_xdg_config_home,
     load_config,
-    reset_config,
 )
 
 
@@ -146,13 +145,6 @@ class TestNfDocsConfig:
 
 class TestLoadConfig:
     """Tests for load_config function."""
-
-    @pytest.fixture(autouse=True)
-    def reset(self) -> None:
-        """Reset global config before and after each test."""
-        reset_config()
-        yield
-        reset_config()
 
     def test_load_default_when_file_missing(self, tmp_path: Path) -> None:
         """Test that defaults are used when config file doesn't exist."""

@@ -27,15 +27,50 @@ from nf_docs.extractor import PipelineExtractor, find_pipeline_root
 from nf_docs.models import Pipeline
 from nf_docs.output import (
     DIRECTORY_FORMATS,
-    SINGLE_FILE_OUTPUT_POLICY,
+    default_output_dir,
     normalize_format,
-    resolve_single_file_output,
+    resolve_data_file_path,
+    resolve_single_file_path,
     resolve_source,
 )
 from nf_docs.progress import ProgressCallbackType
 from nf_docs.renderers import get_renderer
 
 __all__ = ["extract", "render", "generate"]
+
+
+def _extract_resolved(
+    source: Path,
+    single_file_mode: bool,
+    *,
+    config: NfDocsConfig | None = None,
+    language_server_jar: str | Path | None = None,
+    nextflow_path: str = "nextflow",
+    use_cache: bool = True,
+    force_refresh: bool = False,
+    progress_callback: ProgressCallbackType | None = None,
+) -> Pipeline:
+    """
+    Extract from an already-resolved source, so resolution happens exactly once.
+
+    Args:
+        source: Resolved path, as returned by ``resolve_source``
+        single_file_mode: Whether ``source`` is a single ``.nf`` file
+
+    Returns:
+        The extracted Pipeline model
+    """
+    extractor = PipelineExtractor(
+        workspace_path=find_pipeline_root(source) if single_file_mode else source,
+        language_server_jar=language_server_jar,
+        nextflow_path=nextflow_path,
+        use_cache=use_cache,
+        force_refresh=force_refresh,
+        progress_callback=progress_callback,
+        target_file=source if single_file_mode else None,
+        config=config,
+    )
+    return extractor.extract()
 
 
 def extract(
@@ -78,21 +113,16 @@ def extract(
         LSPError: If the Language Server cannot be started or queried
     """
     source, single_file_mode = resolve_source(path)
-
-    workspace_path = find_pipeline_root(source) if single_file_mode else source
-    target_file = source if single_file_mode else None
-
-    extractor = PipelineExtractor(
-        workspace_path=workspace_path,
+    return _extract_resolved(
+        source,
+        single_file_mode,
+        config=config,
         language_server_jar=language_server_jar,
         nextflow_path=nextflow_path,
         use_cache=use_cache,
         force_refresh=force_refresh,
         progress_callback=progress_callback,
-        target_file=target_file,
-        config=config,
     )
-    return extractor.extract()
 
 
 def render(
@@ -123,7 +153,7 @@ def render(
     Raises:
         ValueError: If ``output_format`` is not supported
     """
-    renderer = get_renderer(output_format)(title=title, **renderer_kwargs)
+    renderer = get_renderer(normalize_format(output_format))(title=title, **renderer_kwargs)
     if single_file:
         return renderer.render_single_file(pipeline)
     return renderer.render(pipeline)
@@ -160,12 +190,8 @@ def generate(
             ``json``, ``yaml``
         output: Output file or directory. Defaults to the CLI's conventions.
         title: Custom documentation title
-        config: Configuration to use (see :func:`extract`)
-        language_server_jar: Path to the Nextflow Language Server JAR
-        nextflow_path: Path to the Nextflow executable
-        use_cache: Whether to read and write the extraction cache
-        force_refresh: Re-extract even when a cache entry exists
-        progress_callback: Called with progress updates as extraction proceeds
+        config, language_server_jar, nextflow_path, use_cache, force_refresh,
+            progress_callback: See :func:`extract`.
         **renderer_kwargs: Extra keyword arguments for the specific renderer
 
     Returns:
@@ -177,10 +203,13 @@ def generate(
         LSPError: If the Language Server cannot be started or queried
     """
     canonical_format = normalize_format(output_format)
+    renderer = get_renderer(canonical_format)(title=title, **renderer_kwargs)
     source, single_file_mode = resolve_source(path)
+    output_path = Path(output) if output is not None else None
 
-    pipeline = extract(
+    pipeline = _extract_resolved(
         source,
+        single_file_mode,
         config=config,
         language_server_jar=language_server_jar,
         nextflow_path=nextflow_path,
@@ -189,33 +218,17 @@ def generate(
         progress_callback=progress_callback,
     )
 
-    renderer = get_renderer(canonical_format)(title=title, **renderer_kwargs)
-    output_path = Path(output) if output is not None else None
-
     if single_file_mode:
-        output_file, rendered = resolve_single_file_output(
-            renderer, pipeline, source, canonical_format, output_path
-        )
-        if output_file is None:
-            # json/yaml/table stream to stdout on the CLI; on disk they land
-            # next to the source file using the format's extension.
-            _, dir_ext = SINGLE_FILE_OUTPUT_POLICY.get(canonical_format, (None, canonical_format))
-            output_file = source.parent / f"{source.stem}.{dir_ext}"
+        output_file = resolve_single_file_path(source, canonical_format, output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        output_file.write_text(rendered, encoding="utf-8")
+        output_file.write_text(renderer.render_single_file(pipeline), encoding="utf-8")
         return [output_file]
 
     if canonical_format in DIRECTORY_FORMATS:
-        output_dir = output_path if output_path is not None else source / "docs"
-        return renderer.render_to_directory(pipeline, output_dir)
+        return renderer.render_to_directory(
+            pipeline, output_path if output_path is not None else default_output_dir(source)
+        )
 
-    # json / yaml → a single data file
-    extension = "json" if canonical_format == "json" else "yaml"
-    if output_path is None:
-        output_file = source / "docs" / f"pipeline.{extension}"
-    elif output_path.is_dir():
-        output_file = output_path / f"pipeline.{extension}"
-    else:
-        output_file = output_path
+    output_file = resolve_data_file_path(source, canonical_format, output_path)
     renderer.render_to_file(pipeline, output_file)
     return [output_file]

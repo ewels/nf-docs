@@ -217,28 +217,3 @@ exclude_patterns: []
 #  - "tests/**/*.nf"
 #  - "examples/**/*.nf"
 """
-
-
-# Global config instance (loaded lazily)
-_config: NfDocsConfig | None = None
-
-
-def get_config() -> NfDocsConfig:
-    """
-    Get the global configuration instance.
-
-    Loads the config from file on first call, then returns cached instance.
-
-    Returns:
-        The global NfDocsConfig instance.
-    """
-    global _config
-    if _config is None:
-        _config = load_config()
-    return _config
-
-
-def reset_config() -> None:
-    """Reset the global config instance (useful for testing)."""
-    global _config
-    _config = None

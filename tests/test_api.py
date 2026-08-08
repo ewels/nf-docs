@@ -105,22 +105,13 @@ class TestExtract:
     def test_config_is_injected(self, sample_pipeline: Path) -> None:
         """A passed config reaches the extractor rather than the global one."""
         config = NfDocsConfig(ignore_config_prefixes=["params."])
-        with patch.object(PipelineExtractor, "_extract_from_lsp"):
-            with patch.object(
-                PipelineExtractor, "extract", autospec=True, return_value=Pipeline()
-            ) as mock_extract:
-                extract(sample_pipeline, config=config)
-        assert mock_extract.call_args[0][0].config is config
+        with patch("nf_docs.api.PipelineExtractor") as mock_cls:
+            extract(sample_pipeline, config=config)
+        assert mock_cls.call_args.kwargs["config"] is config
 
     def test_defaults_are_hermetic(self, sample_pipeline: Path) -> None:
         """Without a config argument, defaults are used - not the user's file."""
-        with patch.object(PipelineExtractor, "_extract_from_lsp"):
-            with patch.object(
-                PipelineExtractor, "extract", autospec=True, return_value=Pipeline()
-            ) as mock_extract:
-                extract(sample_pipeline)
-        used = mock_extract.call_args[0][0].config
-        assert used == NfDocsConfig()
+        assert PipelineExtractor(workspace_path=sample_pipeline).config == NfDocsConfig()
 
     def test_config_filters_config_params(self, sample_pipeline: Path) -> None:
         """The injected config actually affects the extracted result."""

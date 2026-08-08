@@ -269,11 +269,10 @@ class PipelineExtractor:
             pipeline.metadata = self._merge_metadata(pipeline.metadata, config_metadata)
             # Filter config params to exclude those already in inputs and ignored prefixes
             input_names = {inp.name for inp in pipeline.inputs}
-            config = self.config
             pipeline.config_params = [
                 p
                 for p in config_params
-                if p.name not in input_names and not config.should_ignore_config_param(p.name)
+                if p.name not in input_names and not self.config.should_ignore_config_param(p.name)
             ]
         except Exception as e:
             logger.warning(f"Failed to parse config: {e}")
