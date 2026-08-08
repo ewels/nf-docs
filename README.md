@@ -99,8 +99,8 @@ By default this writes `README.md` next to `main.nf`. Use `--output` to pick a d
 
 ## Use as a Python library
 
-`nf-docs` is a CLI tool first, but it's also an importable Python package — useful for feeding
-pipeline data into your own tooling or generating docs as part of a site build:
+`nf-docs` is a CLI tool first, but it's also an importable Python package. Useful for feeding
+pipeline data into your own tooling, or generating docs as part of a site build:
 
 ```python
 import nf_docs

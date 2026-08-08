@@ -1,19 +1,19 @@
 # Python API
 
-`nf-docs` is a CLI tool first, but it's a normal Python package too. If you need something the CLI
-doesn't cover — feeding pipeline data into your own tooling, rendering docs as part of a site build,
-or documenting modules in a loop — you can import it directly.
+`nf-docs` is a CLI tool first, but it's also a normal Python package. Import it when you need
+something the CLI doesn't cover: feeding pipeline data into your own tooling, or rendering docs as
+part of a site build.
 
 ```bash
 pip install nf-docs
 ```
 
-The same requirements apply as for the CLI: Java for the Nextflow Language Server, and optionally
+The requirements are the same as for the CLI: Java for the Nextflow Language Server, and optionally
 Nextflow itself for parsing `nextflow.config`.
 
 ## Three functions
 
-Most things are covered by three functions:
+Three functions cover most of it:
 
 | Function     | Does                                                    | Returns      |
 | ------------ | ------------------------------------------------------- | ------------ |
@@ -29,13 +29,13 @@ markdown = nf_docs.render(pipeline, "markdown")
 files = nf_docs.generate("./my_pipeline", output_format="html", output="site/")
 ```
 
-Unlike the CLI, these never print to the console and never exit the process — they return values and
+Unlike the CLI, these never print to the console and never exit the process. They return values and
 raise exceptions.
 
 ## Reading pipeline data
 
-`extract()` gives you a [`Pipeline`](#the-pipeline-model) object. This is the one to reach for when
-you want the data rather than the documentation.
+`extract()` gives you a [`Pipeline`](#the-pipeline-model) object. Use it when you want the data
+rather than the documentation.
 
 ```python
 import nf_docs
@@ -53,7 +53,7 @@ for param in pipeline.inputs:
         print(f"{param.name} ({param.type}) - {param.description}")
 ```
 
-Every model has a `to_dict()`, so handing the whole thing to something else is one call:
+Every model has a `to_dict()`, so handing the whole thing to another tool is one call:
 
 ```python
 import json
@@ -64,8 +64,8 @@ with open("pipeline-api.json", "w") as fh:
 
 ## Rendering into an existing build
 
-`render()` returns a string, which is usually what you want when another tool owns the output
-directory — a static site generator, a template, a wiki upload.
+`render()` returns a string. That's usually what you want when another tool owns the output
+directory, such as a static site generator.
 
 ```python
 from pathlib import Path
@@ -78,7 +78,7 @@ Path("src/content/docs/api.md").write_text(
 )
 ```
 
-Renderer-specific options are passed straight through:
+Renderer-specific options pass straight through:
 
 ```python
 nf_docs.render(pipeline, "json", indent=4)
@@ -92,7 +92,7 @@ pipeline layout.
 
 ## Writing files
 
-`generate()` is the equivalent of `nf-docs generate`, and returns the paths it wrote:
+`generate()` is the equivalent of `nf-docs generate`. It returns the paths it wrote:
 
 ```python
 import nf_docs
@@ -101,20 +101,20 @@ for path in nf_docs.generate("./my_pipeline", output_format="html", output="site
     print(f"wrote {path}")
 ```
 
-Where `output` is omitted, it follows the same conventions as the CLI: `<pipeline>/docs/` for a
-whole pipeline, and a file alongside the source when documenting a single module.
+Omit `output` and it follows the same conventions as the CLI: `<pipeline>/docs/` for a whole
+pipeline, and a file alongside the source when documenting a single module.
 
 !!! note
 
-    `generate()` always writes files, even for `json` and `yaml` — the CLI's habit of streaming
-    those to stdout is a command-line convenience, not part of the API. Use `extract()` and
-    `render()` if you want a string.
+    `generate()` always writes files, even for `json` and `yaml`. Streaming those to stdout is a
+    command-line convenience rather than part of the API. Use `extract()` and `render()` if you
+    want a string.
 
 ## Documenting a single module
 
-Pass a path to a `.nf` file to document just that file. A directory holding a module-style `main.nf`
-(process definitions, no workflow, no pipeline config) is auto-detected, so both of these do the
-same thing:
+Pass a path to a `.nf` file to document just that file. nf-docs also auto-detects a directory
+holding a module-style `main.nf` (process definitions, no workflow, no pipeline config), so both of
+these do the same thing:
 
 ```python
 nf_docs.generate("modules/mytool/main.nf", output_format="md")
@@ -135,13 +135,13 @@ for main_nf in Path("modules").rglob("main.nf"):
 
 !!! warning
 
-    Each call starts its own Language Server process, so a large loop like this is slow. Documenting
-    a whole pipeline in one `extract()` call is much faster than documenting its modules one by one.
+    Each call starts its own Language Server process, so a loop like this is slow. Documenting a
+    whole pipeline in one `extract()` call is much faster than documenting its modules one by one.
 
 ## Progress reporting
 
-Extraction can take a while — the Language Server has to start and index the workspace. Pass a
-`progress_callback` to drive your own progress display. It receives
+Extraction can take a while, because the Language Server has to start and index the workspace. Pass
+a `progress_callback` to drive your own progress display. It receives
 [`ProgressUpdate`](#progress-updates) objects.
 
 ```python
@@ -156,32 +156,41 @@ def show(update: nf_docs.ProgressUpdate) -> None:
 pipeline = nf_docs.extract("./my_pipeline", progress_callback=show)
 ```
 
-With `tqdm`:
+`rich` ships with nf-docs, so a progress bar costs no extra dependency. Passing `None` for
+`completed` or `total` leaves those values alone, so the same callback handles both the countable
+and indeterminate phases:
 
 ```python
-from tqdm import tqdm
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
+
 import nf_docs
 
-bar = tqdm()
+with Progress(
+    SpinnerColumn(),
+    TextColumn("[progress.description]{task.description}"),
+    BarColumn(),
+) as progress:
+    task = progress.add_task("Starting...", total=None)
 
-def show(update: nf_docs.ProgressUpdate) -> None:
-    bar.set_description(update.message)
-    if update.has_progress:
-        bar.total = update.total
-        bar.n = update.current
-        bar.refresh()
+    def show(update: nf_docs.ProgressUpdate) -> None:
+        progress.update(
+            task,
+            description=update.message,
+            completed=update.current,
+            total=update.total,
+        )
 
-nf_docs.extract("./my_pipeline", progress_callback=show)
+    pipeline = nf_docs.extract("./my_pipeline", progress_callback=show)
 ```
 
-`update.phase` is an `ExtractionPhase` enum member if you want to react to specific stages
+`update.phase` is an `ExtractionPhase` member if you want to react to specific stages
 (`LSP_INDEXING`, `PARSING_SCHEMA`, `COMPLETE`, and so on).
 
 ## Configuration
 
-The CLI reads `~/.config/nf-docs/config.yaml`. **The Python API deliberately does not** — a library
-call inside someone else's build script shouldn't change behaviour based on whoever happens to be
-running it. Library calls use the defaults unless you pass a config explicitly:
+The CLI reads `~/.config/nf-docs/config.yaml`. The Python API deliberately does not: a library call
+inside someone else's build script shouldn't change behaviour based on whoever happens to be running
+it. Library calls use the defaults unless you pass a config explicitly:
 
 ```python
 import nf_docs
@@ -197,14 +206,14 @@ config = nf_docs.NfDocsConfig(ignore_config_prefixes=["genomes.", "test."])
 nf_docs.extract("./my_pipeline", config=config)
 ```
 
-`ignore_config_prefixes` drops matching parameters from the Configuration section; it defaults to
-`["genomes."]` for nf-core pipelines. Other `NfDocsConfig` fields exist but are not yet wired into
-extraction — don't rely on them.
+`ignore_config_prefixes` drops matching parameters from the Configuration section, and defaults to
+`["genomes."]` for nf-core pipelines. The other `NfDocsConfig` fields exist but aren't yet wired
+into extraction, so don't rely on them.
 
 ## Caching
 
-Extraction results are cached in `~/.cache/nf-docs/`, keyed by pipeline path, nf-docs version, and a
-hash of the pipeline's files. The cache is on by default, matching the CLI:
+nf-docs caches extraction results in `~/.cache/nf-docs/`, keyed by pipeline path, nf-docs version,
+and a hash of the pipeline's files. The cache is on by default, matching the CLI:
 
 ```python
 nf_docs.extract("./my_pipeline", use_cache=False)     # ignore the cache entirely
@@ -239,9 +248,9 @@ except nf_docs.ExtractionError as e:
     print(f"Could not extract: {e}")
 ```
 
-Missing or unparseable individual sources (no schema, a broken `nextflow.config`) are logged as
-warnings and skipped, not raised. Nothing is written to the console — attach a handler to the
-`nf_docs` logger if you want to see them:
+A missing or unparseable individual source (no schema, a broken `nextflow.config`) logs a warning
+and carries on rather than raising. Nothing reaches the console by default. Attach a handler to the
+`nf_docs` logger to see these:
 
 ```python
 import logging
@@ -252,8 +261,8 @@ logging.getLogger("nf_docs").setLevel(logging.INFO)
 
 ## The Pipeline model
 
-Everything is a plain `@dataclass`, so `dataclasses.asdict()`, `to_dict()`, attribute access and
-`match` statements all work as you'd expect.
+Everything is a plain `@dataclass`, so `to_dict()`, `dataclasses.asdict()` and ordinary attribute
+access all work.
 
 | Attribute       | Type                  | Contents                                      |
 | --------------- | --------------------- | --------------------------------------------- |
@@ -271,7 +280,7 @@ pipeline.has_content()                  # did we find anything at all?
 pipeline.get_entry_workflow()           # the entry workflow, or None
 pipeline.get_process_by_name("FASTQC")  # a Process, or None
 pipeline.get_input_groups()             # inputs grouped by schema section
-pipeline.to_dict()                       # JSON-compatible dict
+pipeline.to_dict()                      # JSON-compatible dict
 ```
 
 ## Progress updates
@@ -307,14 +316,14 @@ renderer = get_renderer("markdown")(title="My Pipeline")
 files = renderer.render_to_directory(pipeline, "docs/")
 ```
 
-Subclass `BaseRenderer` to add your own output format — implement `render()` and
+Subclass `BaseRenderer` to add your own output format, implementing `render()` and
 `render_to_directory()`.
 
 ## What's public
 
 Anything re-exported from the top-level `nf_docs` namespace, plus the models in `nf_docs.models`, is
-the supported API. Everything else — underscore-prefixed helpers, the Language Server client
-internals, the parser modules — may change without notice.
+the supported API. Everything else may change without notice: underscore-prefixed helpers, the
+Language Server client internals, the parser modules.
 
 `nf-docs` is pre-1.0, so the public API may still change between minor releases. Pin a version if
 that matters to you.
