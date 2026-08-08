@@ -6,7 +6,6 @@ pipeline documentation.
 """
 
 import logging
-import re
 import sys
 from pathlib import Path
 
@@ -23,8 +22,10 @@ from rich.progress import (
 )
 
 from nf_docs import __version__
+from nf_docs.config import load_config
 from nf_docs.extractor import ExtractionError, PipelineExtractor, find_pipeline_root
 from nf_docs.lsp_client import LSPError
+from nf_docs.output import normalize_format, resolve_single_file_output, resolve_source
 from nf_docs.progress import ProgressUpdate
 from nf_docs.renderers import get_renderer
 
@@ -167,66 +168,6 @@ def _display_path(path: Path) -> str:
         return str(path)
 
 
-def _looks_like_module(main_nf: Path) -> bool:
-    """
-    Heuristic: ``main.nf`` defines at least one ``process`` block and no
-    top-level ``workflow`` block — i.e. it's an nf-core-style module rather
-    than a pipeline entry point or subworkflow.
-    """
-    try:
-        content = main_nf.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    has_process = re.search(r"(?m)^\s*process\b", content) is not None
-    has_workflow = re.search(r"(?m)^\s*workflow\b", content) is not None
-    return has_process and not has_workflow
-
-
-# Single-file output policy per format:
-#   default_name: the filename to use when the user passes no --output (or
-#       passes a directory). ``None`` means "stream to stdout instead".
-#   dir_ext: when streaming-default formats are forced to a file via
-#       ``--output some_dir/``, use ``{source_stem}.{dir_ext}``.
-_SINGLE_FILE_OUTPUT_POLICY: dict[str, tuple[str | None, str]] = {
-    "markdown": ("README.md", "md"),
-    "html": ("index.html", "html"),
-    "json": (None, "json"),
-    "yaml": (None, "yaml"),
-    "table": (None, "txt"),
-}
-
-
-def _resolve_single_file_output(
-    renderer,
-    pipeline,
-    source_file: Path,
-    output_format: str,
-    output_path: Path | None,
-) -> tuple[Path | None, str]:
-    """
-    For single-file mode, decide where to write and produce the rendered string.
-
-    Returns a tuple of ``(output_file, rendered_content)``. ``output_file`` is
-    ``None`` when the content should go to stdout (json/yaml/table without
-    explicit ``--output``).
-    """
-    rendered = renderer.render_single_file(pipeline)
-    default_name, dir_ext = _SINGLE_FILE_OUTPUT_POLICY.get(output_format, (None, output_format))
-
-    if output_path is not None:
-        # User-specified path always wins. Treat directories as "put a default
-        # filename in here" so `-o some_dir/` still works.
-        if output_path.is_dir():
-            filename = default_name or f"{source_file.stem}.{dir_ext}"
-            return output_path / filename, rendered
-        return output_path, rendered
-
-    if default_name is not None:
-        return source_file.parent / default_name, rendered
-    # json / yaml / table → stdout
-    return None, rendered
-
-
 @main.command()
 @click.argument("pipeline_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
@@ -303,53 +244,38 @@ def generate(
     """
     setup_logging(verbose)
 
-    # Normalize format aliases
-    if output_format == "md":
-        output_format = "markdown"
+    output_format = normalize_format(output_format)
 
-    # Decide single-file vs directory mode up front.
-    single_file_mode = pipeline_path.is_file()
-    if single_file_mode and pipeline_path.suffix.lower() != ".nf":
-        console.print(f"[red]Single-file input must be a .nf file, got: {pipeline_path.name}[/red]")
+    # Decide single-file vs directory mode up front. A directory holding only a
+    # module-style main.nf is auto-detected as a single module.
+    try:
+        pipeline_path, single_file_mode = resolve_source(pipeline_path)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
         sys.exit(1)
-
-    # Auto-detect a single module: directory has a main.nf that defines
-    # process(es) and no workflow block, with no pipeline-level config files.
-    if not single_file_mode:
-        main_nf = pipeline_path / "main.nf"
-        has_pipeline_config = (pipeline_path / "nextflow.config").is_file() or (
-            pipeline_path / "nextflow_schema.json"
-        ).is_file()
-        if main_nf.is_file() and not has_pipeline_config and _looks_like_module(main_nf):
-            pipeline_path = main_nf
-            single_file_mode = True
 
     if single_file_mode:
         logging.getLogger("nf_docs").info("Generating single module documentation")
 
+    # The CLI honours the user's ~/.config/nf-docs/config.yaml; the Python API
+    # deliberately does not (see nf_docs.api.extract).
+    user_config = load_config()
+
     try:
         with ExtractionProgressDisplay(console) as progress_display:
             # Extract documentation
-            if single_file_mode:
-                workspace_root = find_pipeline_root(pipeline_path)
-                extractor = PipelineExtractor(
-                    workspace_path=workspace_root,
-                    language_server_jar=language_server,
-                    nextflow_path=nextflow_path,
-                    use_cache=True,
-                    force_refresh=no_cache,
-                    progress_callback=progress_display.callback,
-                    target_file=pipeline_path,
-                )
-            else:
-                extractor = PipelineExtractor(
-                    workspace_path=pipeline_path,
-                    language_server_jar=language_server,
-                    nextflow_path=nextflow_path,
-                    use_cache=True,
-                    force_refresh=no_cache,
-                    progress_callback=progress_display.callback,
-                )
+            extractor = PipelineExtractor(
+                workspace_path=find_pipeline_root(pipeline_path)
+                if single_file_mode
+                else pipeline_path,
+                language_server_jar=language_server,
+                nextflow_path=nextflow_path,
+                use_cache=True,
+                force_refresh=no_cache,
+                progress_callback=progress_display.callback,
+                target_file=pipeline_path if single_file_mode else None,
+                config=user_config,
+            )
 
             pipeline = extractor.extract()
 
@@ -382,7 +308,7 @@ def generate(
             renderer = renderer_class(title=title)
 
             if single_file_mode:
-                output_file, rendered = _resolve_single_file_output(
+                output_file, rendered = resolve_single_file_output(
                     renderer, pipeline, pipeline_path, output_format, output_path
                 )
                 progress.update(task, description="Rendering complete")
@@ -483,6 +409,7 @@ def inspect(pipeline_path: Path, verbose: bool) -> None:
             extractor = PipelineExtractor(
                 workspace_path=pipeline_path,
                 progress_callback=progress_display.callback,
+                config=load_config(),
             )
 
             pipeline = extractor.extract()

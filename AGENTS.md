@@ -178,9 +178,11 @@ Async test mode is `auto` (via `asyncio_mode = "auto"` in pyproject.toml).
 
 ```
 src/nf_docs/
-├── __init__.py          # Version from importlib.metadata, re-exports models
+├── __init__.py          # Version, public API re-exports (__all__)
+├── api.py               # High-level library API: extract() / render() / generate()
 ├── cache.py             # XDG-compliant caching with content hashing
 ├── cli.py               # CLI entry point (rich-click)
+├── output.py            # Output path policy shared by the CLI and api.py
 ├── config.py            # User config from ~/.config/nf-docs/config.yaml
 ├── config_parser.py     # Parse nextflow.config via `nextflow config -flat`
 ├── extractor.py         # Main extraction orchestration
@@ -219,6 +221,13 @@ src/nf_docs/
   new output format means updating `get_renderer()`, the CLI's `--format` choices, and tests.
 - **Config parsing**: `config_parser.py` shells out to `nextflow config -flat`. `nextflow_env.py`
   sets an isolated `NXF_HOME` so this doesn't pollute the user's Nextflow state.
+- **Two entry points**: `cli.py` (rich-click) and `api.py` (library). Both go through `output.py`
+  for path/format decisions, so behaviour stays in sync. Keep console output and `sys.exit()` in
+  `cli.py` only — core modules log via `logging` and raise exceptions. The CLI reads the user's
+  `~/.config/nf-docs/config.yaml` and passes it in explicitly; `api.py` uses `NfDocsConfig()`
+  defaults so library calls are reproducible.
+- **Public API**: everything in `nf_docs.__all__` plus `nf_docs.models`. Adding to it is a
+  commitment — update `docs/python-api.md` and `tests/test_api.py` alongside.
 - **Pre-commit hook entry**: `.pre-commit-hooks.yaml` exposes the CLI as the `nf-docs` hook with
   default `args: [., --format, html]`, triggered by changes to `.nf`, `nextflow.config`,
   `nextflow_schema.json`, `meta.yml`, or README files. Guarded by `tests/test_pre_commit_hooks.py`.

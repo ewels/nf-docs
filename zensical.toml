@@ -11,6 +11,7 @@ nav = [
   {"Installation" = "installation.md"},
   {"Running nf-docs" = "running.md"},
   {"Writing docs" = "writing.md"},
+  {"Python API" = "python-api.md"},
   {"Examples" = "examples.md"},
 ]
 

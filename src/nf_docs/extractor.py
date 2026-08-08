@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from nf_docs.cache import PipelineCache
-from nf_docs.config import get_config
+from nf_docs.config import NfDocsConfig
 from nf_docs.config_parser import parse_config
 from nf_docs.git_utils import GitInfo, build_source_url, get_git_info
 from nf_docs.lsp_client import LSPClient, SymbolKind, parse_hover_content
@@ -143,6 +143,7 @@ class PipelineExtractor:
         force_refresh: bool = False,
         progress_callback: ProgressCallbackType | None = None,
         target_file: str | Path | None = None,
+        config: NfDocsConfig | None = None,
     ):
         """
         Initialize the extractor.
@@ -157,8 +158,12 @@ class PipelineExtractor:
             target_file: If set, extract only from this single ``.nf`` file
                 instead of scanning the whole workspace. Pipeline-level sources
                 (schema, config, README, cache) are skipped in this mode.
+            config: Configuration to use. Defaults to ``NfDocsConfig()`` defaults
+                rather than the user's config file, so that library callers get
+                reproducible results. The CLI passes ``load_config()`` explicitly.
         """
         self.workspace_path = Path(workspace_path).resolve()
+        self.config = config if config is not None else NfDocsConfig()
         self.language_server_jar = language_server_jar
         self.nextflow_path = nextflow_path
         self.target_file = Path(target_file).resolve() if target_file else None
@@ -264,7 +269,7 @@ class PipelineExtractor:
             pipeline.metadata = self._merge_metadata(pipeline.metadata, config_metadata)
             # Filter config params to exclude those already in inputs and ignored prefixes
             input_names = {inp.name for inp in pipeline.inputs}
-            config = get_config()
+            config = self.config
             pipeline.config_params = [
                 p
                 for p in config_params
