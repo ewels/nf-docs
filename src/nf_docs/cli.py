@@ -13,7 +13,6 @@ import rich_click as click
 import yaml
 from rich.console import Console
 from rich.logging import RichHandler
-from rich.markup import escape
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -25,21 +24,21 @@ from rich.progress import (
 
 from nf_docs import __version__
 from nf_docs.api import extract as extract_pipeline
-from nf_docs.config import NfDocsConfig, get_config_path, get_example_config, load_config
+from nf_docs.config import get_config_path, get_example_config, load_config
 from nf_docs.extractor import ExtractionError, PipelineExtractor
 from nf_docs.lsp_client import LSPError
 from nf_docs.output import (
     DIRECTORY_FORMATS,
-    FORMAT_ALIASES,
     default_output_dir,
     normalize_format,
     resolve_data_file_path,
     resolve_single_file_path,
     resolve_source,
     streams_by_default,
+    supported_formats,
 )
 from nf_docs.progress import ProgressUpdate
-from nf_docs.renderers import RENDERERS, get_renderer
+from nf_docs.renderers import get_renderer
 
 console = Console()
 
@@ -180,49 +179,16 @@ def _display_path(path: Path) -> str:
         return str(path)
 
 
-def _resolve_output_format(output_format: str | None, config: NfDocsConfig) -> str:
-    """
-    Work out which output format to use.
-
-    An explicit ``-f/--format`` always wins. With no flag we fall back to the
-    config file's ``default_format``, warning and using the built-in default if
-    that value isn't a format we can render.
-
-    Args:
-        output_format: The value of ``-f/--format``, or None if it wasn't given
-        config: The user's loaded configuration
-
-    Returns:
-        A canonical format name
-    """
-    if output_format is not None:
-        return normalize_format(output_format)
-
-    try:
-        get_renderer(config.default_format)
-    except ValueError:
-        fallback = NfDocsConfig().default_format
-        # escape(): the value is straight from the user's config file, and rich
-        # would read something like "[/]" as markup and raise.
-        console.print(
-            f"[yellow]Ignoring unknown default_format {escape(repr(config.default_format))} "
-            f"in {escape(str(get_config_path()))}, using {fallback}[/yellow]"
-        )
-        return fallback
-
-    return normalize_format(config.default_format)
-
-
 @main.command()
 @click.argument("pipeline_path", type=click.Path(exists=True, path_type=Path))
 @click.option(
     "--format",
     "-f",
     "output_format",
-    type=click.Choice(sorted({*RENDERERS, *FORMAT_ALIASES}), case_sensitive=False),
+    type=click.Choice(supported_formats(), case_sensitive=False),
     default=None,
     help=(
-        "Output format: json, yaml, markdown (or md), html, table "
+        f"Output format: {', '.join(supported_formats())} "
         "(default: the config file's default_format, otherwise html)"
     ),
 )
@@ -296,8 +262,9 @@ def generate(
     # deliberately does not (see nf_docs.api.extract).
     user_config = load_config()
 
-    # An explicit --format wins; otherwise fall back to the configured default.
-    output_format = _resolve_output_format(output_format, user_config)
+    # An explicit --format wins; otherwise the config file's default_format,
+    # which load_config() has already checked is a format we can render.
+    output_format = normalize_format(output_format or user_config.default_format)
 
     # Decide single-file vs directory mode up front. A directory holding only a
     # module-style main.nf is auto-detected as a single module.

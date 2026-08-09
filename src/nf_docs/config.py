@@ -12,11 +12,14 @@ import hashlib
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+from nf_docs.output import is_supported_format, supported_formats
 
 logger = logging.getLogger(__name__)
 
@@ -38,63 +41,46 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "exclude_patterns": [],
 }
 
-# Expected shape of each option, for checking what comes out of the YAML file.
-# ``list`` means "list of strings". Every option is consulted during extraction
-# or by the CLI, so a value of the wrong type reaches real code and fails there
-# rather than here - hence checking at the boundary instead of at each use.
-_FIELD_TYPES: dict[str, type] = {
-    "ignore_config_prefixes": list,
-    "ignore_input_prefixes": list,
-    "include_hidden_params": bool,
-    "default_format": str,
-    "max_readme_length": int,
-    "strip_readme_badges": bool,
-    "exclude_patterns": list,
-}
+# Expected shape of each option, derived from the default it ships with so the
+# two can't drift. ``list`` means "list of strings". An option defaulting to
+# None would need stating explicitly here; none currently does.
+_FIELD_TYPES: dict[str, type] = {key: type(value) for key, value in DEFAULT_CONFIG.items()}
 
 # Options that don't affect extraction, and so stay out of the cache key.
 _CLI_ONLY_FIELDS = frozenset({"default_format"})
 
+# Options whose value has to be one of a known set, beyond just having the right
+# type, paired with what to tell the user when it isn't. Checked in from_dict so
+# every option is validated in one place.
+_FIELD_VALUE_CHECKS: dict[str, tuple[Callable[[Any], bool], str]] = {
+    "default_format": (is_supported_format, f"one of {', '.join(supported_formats())}"),
+}
 
-def _has_expected_shape(key: str, value: Any) -> bool:
+
+def _requirement(key: str) -> str:
+    """Describe what an option accepts, completing "should be ..." in a warning."""
+    if key in _FIELD_VALUE_CHECKS:
+        return _FIELD_VALUE_CHECKS[key][1]
+    return "a list of strings" if _FIELD_TYPES[key] is list else _FIELD_TYPES[key].__name__
+
+
+def _is_valid(key: str, value: Any) -> bool:
     """
-    Check a config value against the type its option expects.
+    Check a config value against the type, and domain, its option expects.
 
-    Args:
-        key: Option name, which must be present in ``_FIELD_TYPES``
-        value: Value as parsed from YAML
-
-    Returns:
-        True if the value can be used as-is.
+    Every option is consulted during extraction or by the CLI, so a bad value
+    would otherwise reach real code and fail there instead of at the boundary.
     """
     expected = _FIELD_TYPES[key]
-    if expected is bool:
-        return isinstance(value, bool)
-    if expected is int:
-        # bool is a subclass of int, but `max_readme_length: true` is a mistake.
-        return isinstance(value, int) and not isinstance(value, bool)
-    if expected is str:
-        return isinstance(value, str)
-    return isinstance(value, list) and all(isinstance(item, str) for item in value)
-
-
-def _describe_expected(key: str, value: Any) -> str:
-    """
-    Describe what an option wanted and what it got, for a warning message.
-
-    Args:
-        key: Option name, which must be present in ``_FIELD_TYPES``
-        value: The offending value
-
-    Returns:
-        A phrase completing "Config option 'x' should be ...".
-    """
-    if _FIELD_TYPES[key] is not list:
-        return f"{_FIELD_TYPES[key].__name__}, got {type(value).__name__}"
-    if not isinstance(value, list):
-        return f"a list of strings, got {type(value).__name__}"
-    offenders = sorted({type(item).__name__ for item in value if not isinstance(item, str)})
-    return f"a list of strings, but it contains {' and '.join(offenders)}"
+    if expected is list:
+        if not (isinstance(value, list) and all(isinstance(item, str) for item in value)):
+            return False
+    elif expected is int and isinstance(value, bool):
+        return False  # bool subclasses int, but `max_readme_length: true` is a mistake
+    elif not isinstance(value, expected):
+        return False
+    check = _FIELD_VALUE_CHECKS.get(key)
+    return check[0](value) if check else True
 
 
 def get_xdg_config_home() -> Path:
@@ -176,13 +162,13 @@ class NfDocsConfig:
         """
         values: dict[str, Any] = {}
         for key, default in DEFAULT_CONFIG.items():
-            if key in data and _has_expected_shape(key, data[key]):
-                values[key] = data[key]
-                continue
             if key in data:
+                if _is_valid(key, data[key]):
+                    values[key] = data[key]
+                    continue
                 logger.warning(
-                    f"Config option {key!r} should be {_describe_expected(key, data[key])}. "
-                    f"Using the default: {default!r}"
+                    f"Config option {key!r} should be {_requirement(key)}, "
+                    f"got {data[key]!r}. Using the default: {default!r}"
                 )
             # Copy, so the caller can't mutate DEFAULT_CONFIG through the result.
             values[key] = list(default) if isinstance(default, list) else default

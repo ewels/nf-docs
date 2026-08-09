@@ -9,7 +9,7 @@ This package contains renderers for different output formats:
  Table: Compact Markdown tables (terraform-docs style)
 """
 
-from nf_docs.output import FORMAT_ALIASES, normalize_format
+from nf_docs.output import normalize_format, supported_formats
 from nf_docs.renderers.base import BaseRenderer
 from nf_docs.renderers.html import HTMLRenderer
 from nf_docs.renderers.json import JSONRenderer
@@ -55,7 +55,7 @@ def get_renderer(format: str) -> type[BaseRenderer]:
     """
     canonical = normalize_format(format)
     if canonical not in RENDERERS:
-        supported = ", ".join(sorted({*RENDERERS, *FORMAT_ALIASES}))
+        supported = ", ".join(supported_formats())
         raise ValueError(f"Unsupported format: {format}. Supported formats: {supported}")
 
     return RENDERERS[canonical]

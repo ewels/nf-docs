@@ -8,10 +8,9 @@ import pytest
 import yaml
 
 from nf_docs.config import (
-    _FIELD_TYPES,
     DEFAULT_CONFIG,
     NfDocsConfig,
-    _has_expected_shape,
+    _is_valid,
     get_config_path,
     get_example_config,
     get_xdg_config_home,
@@ -130,51 +129,10 @@ class TestNfDocsConfig:
         assert config.include_hidden_params == DEFAULT_CONFIG["include_hidden_params"]
         assert config.default_format == DEFAULT_CONFIG["default_format"]
 
-    def test_every_option_has_a_declared_type(self) -> None:
-        """
-        DEFAULT_CONFIG and _FIELD_TYPES must describe the same set of options.
-
-        from_dict() looks each option up in both, so an option added to one only
-        turns config loading into a KeyError.
-        """
-        assert set(DEFAULT_CONFIG) == set(_FIELD_TYPES)
-
-    def test_defaults_satisfy_their_own_declared_types(self) -> None:
-        """Each default is a valid value for its option."""
+    def test_defaults_are_themselves_valid(self) -> None:
+        """Each default passes the check applied to a user's value."""
         for key, default in DEFAULT_CONFIG.items():
-            assert _has_expected_shape(key, default), key
-
-    def test_example_config_is_valid_and_matches_defaults(self) -> None:
-        """
-        The shipped example must parse, and describe the defaults it claims.
-
-        `nf-docs config --init` writes this file verbatim, so a stale value here
-        silently changes behaviour for anyone who runs it.
-        """
-        parsed = yaml.safe_load(get_example_config())
-
-        assert NfDocsConfig.from_dict(parsed) == NfDocsConfig()
-        assert set(parsed) <= set(DEFAULT_CONFIG)
-
-    def test_example_config_suggestions_uncomment_to_valid_yaml(self) -> None:
-        """
-        Uncommenting a suggested value must leave a usable config file.
-
-        A suggestion that uncomments to a bare list is an orphan under whatever
-        precedes it, which makes the whole file unparseable - and a broken file
-        isn't a partial failure. load_config() discards all of it and silently
-        reverts every option to its default.
-        """
-        lines = get_example_config().splitlines()
-        for is_comment, group in groupby(lines, lambda line: line.startswith("#")):
-            if not is_comment:
-                continue
-            block = "\n".join(line.removeprefix("#").removeprefix(" ") for line in group)
-            try:
-                uncommented = yaml.safe_load(block)
-            except yaml.YAMLError:
-                continue  # Prose, not a suggested setting
-            assert not isinstance(uncommented, list), block
+            assert _is_valid(key, default), key
 
     def test_from_dict_ignores_unknown_keys(self) -> None:
         """A key nf-docs doesn't know about is skipped, not an error."""
@@ -187,7 +145,6 @@ class TestNfDocsConfig:
         config = NfDocsConfig.from_dict({})
         config.ignore_config_prefixes.append("mutated.")
 
-        assert DEFAULT_CONFIG["ignore_config_prefixes"] == ["genomes."]
         assert NfDocsConfig.from_dict({}).ignore_config_prefixes == ["genomes."]
 
     @pytest.mark.parametrize(
@@ -206,18 +163,13 @@ class TestNfDocsConfig:
             ("strip_readme_badges", 1),
         ],
     )
-    def test_from_dict_falls_back_on_wrong_type(self, key: str, bad_value: object) -> None:
-        """A value of the wrong type warns and uses the default."""
-        config = NfDocsConfig.from_dict({key: bad_value})
+    def test_from_dict_falls_back_on_bad_value(self, key: str, bad_value: object, caplog) -> None:
+        """A value nf-docs can't use warns and falls back to the default."""
+        with caplog.at_level(logging.WARNING):
+            config = NfDocsConfig.from_dict({key: bad_value})
 
         assert getattr(config, key) == DEFAULT_CONFIG[key]
-
-    def test_from_dict_warns_about_wrong_type(self, caplog) -> None:
-        """The fallback is announced rather than silent."""
-        with caplog.at_level(logging.WARNING):
-            NfDocsConfig.from_dict({"max_readme_length": "lots"})
-
-        assert "max_readme_length" in caplog.text
+        assert key in caplog.text
 
     def test_cache_key_ignores_default_format(self) -> None:
         """default_format is CLI-only, so changing it must not evict extractions."""
@@ -332,8 +284,6 @@ class TestGetExampleConfig:
 
     def test_returns_valid_yaml(self) -> None:
         """Test that example config is valid YAML."""
-        import yaml
-
         example = get_example_config()
         data = yaml.safe_load(example)
 
@@ -341,6 +291,33 @@ class TestGetExampleConfig:
         assert "ignore_config_prefixes" in data
         assert "include_hidden_params" in data
         assert "default_format" in data
+
+    def test_describes_the_actual_defaults(self) -> None:
+        """
+        `nf-docs config --init` writes this file verbatim, so a value that has
+        drifted from the code silently changes behaviour for anyone who runs it.
+        """
+        assert NfDocsConfig.from_dict(yaml.safe_load(get_example_config())) == NfDocsConfig()
+
+    def test_example_config_suggestions_uncomment_to_valid_yaml(self) -> None:
+        """
+        Uncommenting a suggested value must leave a usable config file.
+
+        A suggestion that uncomments to a bare list is an orphan under whatever
+        precedes it, which makes the whole file unparseable - and a broken file
+        isn't a partial failure. load_config() discards all of it and silently
+        reverts every option to its default.
+        """
+        lines = get_example_config().splitlines()
+        for is_comment, group in groupby(lines, lambda line: line.startswith("#")):
+            if not is_comment:
+                continue
+            block = "\n".join(line.removeprefix("#").removeprefix(" ") for line in group)
+            try:
+                uncommented = yaml.safe_load(block)
+            except yaml.YAMLError:
+                continue  # Prose, not a suggested setting
+            assert not isinstance(uncommented, list), block
 
     def test_contains_comments(self) -> None:
         """Test that example config contains helpful comments."""

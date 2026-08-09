@@ -56,6 +56,34 @@ def normalize_format(output_format: str) -> str:
     return FORMAT_ALIASES.get(lowered, lowered)
 
 
+def is_supported_format(output_format: str) -> bool:
+    """
+    Check whether a format name (or alias) is one nf-docs can render.
+
+    This module is a leaf - it imports nothing from the rest of the package -
+    so ``config.py`` can validate a config file's ``default_format`` without
+    pulling in the renderers. ``tests/test_renderers.py`` pins these names to
+    the renderer registry.
+
+    Args:
+        output_format: Format name as the user wrote it
+
+    Returns:
+        True if the format can be rendered.
+    """
+    return normalize_format(output_format) in SINGLE_FILE_OUTPUT_POLICY
+
+
+def supported_formats() -> list[str]:
+    """
+    Every format name accepted on input, canonical names and aliases, sorted.
+
+    Returns:
+        Names suitable for a ``click.Choice`` or a help string.
+    """
+    return sorted({*SINGLE_FILE_OUTPUT_POLICY, *FORMAT_ALIASES})
+
+
 def format_extension(output_format: str) -> str:
     """
     Get the file extension for a canonical format name.

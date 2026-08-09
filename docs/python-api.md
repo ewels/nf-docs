@@ -206,29 +206,14 @@ config = nf_docs.NfDocsConfig(ignore_config_prefixes=["genomes.", "test."])
 nf_docs.extract("./my_pipeline", config=config)
 ```
 
-The fields:
+The fields, their defaults and what each one does are listed under
+[Configuration file](running.md#configuration-file). Two things specific to the API:
 
-| Field                     | Default        | Effect                                                                          |
-| ------------------------- | -------------- | ------------------------------------------------------------------------------- |
-| `ignore_config_prefixes`  | `["genomes."]` | Drops matching parameters from the Configuration section                        |
-| `ignore_input_prefixes`   | `[]`           | Drops matching parameters from the Parameters section                           |
-| `include_hidden_params`   | `True`         | Set `False` to leave out parameters marked `hidden` in `nextflow_schema.json`   |
-| `max_readme_length`       | `0`            | Trims README source text to this many characters, on a line boundary. `0` = no limit |
-| `strip_readme_badges`     | `True`         | Set `False` to keep the badge lines below a README's title                      |
-| `exclude_patterns`        | `[]`           | Extra paths the Language Server skips when indexing the workspace               |
-| `default_format`          | `"html"`       | CLI only — the format `nf-docs generate` uses without `-f/--format`             |
-
-A parameter dropped by `include_hidden_params` or `ignore_input_prefixes` doesn't reappear under
-Configuration; it's left out of the documentation entirely.
-
-`exclude_patterns` is added to the exclusions nf-docs always sends (`.git`, `.nf-test`, `work`)
-rather than replacing them.
-
-`max_readme_length` caps the README source text. Local images are converted to base64 data URIs
-*after* the cut, so `readme_content` can still be large if the kept portion contains images.
-
-A value of the wrong type falls back to that option's default with a warning, so a typo in
-`config.yaml` won't surface as an error part-way through extraction.
+- `default_format` is read only by `nf-docs generate`. Setting it on a config you pass to
+  `extract()` or `generate()` does nothing — the API takes its format as an argument.
+- Passing a config that isn't an `NfDocsConfig` (say, a plain dict) isn't supported. Build one with
+  `NfDocsConfig(...)`, or `NfDocsConfig.from_dict(...)` if you have a mapping and want the same
+  wrong-type checking `load_config()` applies.
 
 ## Caching
 

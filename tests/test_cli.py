@@ -1,5 +1,6 @@
 """Tests for the CLI interface."""
 
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
@@ -317,18 +318,33 @@ class TestDefaultFormatConfig:
         assert (output / "index.html").exists()
 
     def test_unknown_default_format_warns_and_falls_back(
-        self, runner: CliRunner, sample_pipeline: Path, tmp_path: Path
+        self, runner: CliRunner, sample_pipeline: Path, tmp_path: Path, caplog
     ):
         """A bad config value is a warning and html, not a traceback."""
         write_user_config("default_format: nonsense\n")
         output = tmp_path / "site"
 
-        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+        with caplog.at_level(logging.WARNING), patch.object(PipelineExtractor, "_extract_from_lsp"):
             result = runner.invoke(generate, [str(sample_pipeline), "-o", str(output)])
 
         assert result.exit_code == 0
-        assert "nonsense" in result.output
+        assert "nonsense" in caplog.text
         assert (output / "index.html").exists()
+
+    def test_config_command_reports_the_format_actually_used(self, runner: CliRunner):
+        """
+        `nf-docs config` must not report a value `generate` would reject.
+
+        Validating default_format at load time rather than in the CLI is what
+        keeps these two commands agreeing.
+        """
+        write_user_config("default_format: nonsense\n")
+
+        result = runner.invoke(config, [])
+
+        assert result.exit_code == 0
+        assert "default_format: html" in result.output
+        assert "nonsense" not in result.output
 
 
 class TestConfigCommand:
