@@ -4,8 +4,6 @@ YAML renderer for nf-docs.
 Outputs pipeline documentation as structured YAML data.
 """
 
-from pathlib import Path
-
 import yaml
 
 from nf_docs.models import Pipeline
@@ -22,15 +20,24 @@ class YAMLRenderer(BaseRenderer):
     - Integration with YAML-based tools
     """
 
-    def __init__(self, title: str | None = None, default_flow_style: bool = False):
+    def __init__(
+        self,
+        title: str | None = None,
+        default_flow_style: bool = False,
+        *,
+        include_generation_info: bool = True,
+    ):
         """
         Initialize the YAML renderer.
 
         Args:
             title: Optional custom title (included in output)
             default_flow_style: Use flow style for sequences/mappings
+            include_generation_info: Accepted for consistency with the other
+                renderers. YAML output carries no generation metadata, so it is
+                already reproducible either way.
         """
-        super().__init__(title)
+        super().__init__(title, include_generation_info=include_generation_info)
         self.default_flow_style = default_flow_style
 
     def render(self, pipeline: Pipeline) -> str:
@@ -57,27 +64,14 @@ class YAMLRenderer(BaseRenderer):
             width=100,
         )
 
-    def render_to_directory(self, pipeline: Pipeline, output_dir: str | Path) -> list[Path]:
+    def render_pages(self, pipeline: Pipeline) -> dict[str, str]:
         """
-        Render the pipeline to a directory.
-
-        For YAML, this creates a single file.
+        Render the pipeline as a single ``<pipeline name>-api.yaml`` file.
 
         Args:
             pipeline: The Pipeline model to render
-            output_dir: Output directory path
 
         Returns:
-            List containing the single output file path
+            Mapping with one entry: the YAML file name and its content
         """
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Determine filename from pipeline name
-        name = pipeline.metadata.name or "pipeline"
-        # Clean name for filename
-        clean_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
-        filename = output_path / f"{clean_name}-api.yaml"
-
-        self.render_to_file(pipeline, filename)
-        return [filename]
+        return {self._api_filename(pipeline, "yaml"): self.render(pipeline)}

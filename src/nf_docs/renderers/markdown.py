@@ -6,9 +6,7 @@ static site generators like MkDocs, Docusaurus, or GitHub Pages.
 """
 
 import re
-from pathlib import Path
 
-from nf_docs.generation_info import get_markdown_footer
 from nf_docs.models import Function, Pipeline, PipelineInput, Process, Workflow
 from nf_docs.renderers.base import BaseRenderer
 
@@ -58,70 +56,49 @@ class MarkdownRenderer(BaseRenderer):
         content = "\n\n---\n\n".join(sections)
 
         # Add footer
-        content += "\n\n" + get_markdown_footer()
+        content += self._markdown_footer()
 
         return content
 
-    def render_to_directory(self, pipeline: Pipeline, output_dir: str | Path) -> list[Path]:
+    def render_pages(self, pipeline: Pipeline) -> dict[str, str]:
         """
-        Render the pipeline to a directory of Markdown files.
+        Render the pipeline as one Markdown string per page.
+
+        ``index.md`` and ``inputs.md`` are always present. The other four pages
+        only appear when the pipeline has something to put in them, so don't
+        assume a fixed set of keys.
 
         Args:
             pipeline: The Pipeline model to render
-            output_dir: Output directory path
 
         Returns:
-            List of created file paths
+            Mapping of file name to Markdown content, in page order
         """
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        created_files: list[Path] = []
-        footer = get_markdown_footer()
-
-        # index.md - Pipeline overview
-        index_file = output_path / "index.md"
-        index_file.write_text(self._render_index(pipeline) + "\n\n" + footer, encoding="utf-8")
-        created_files.append(index_file)
-
-        # inputs.md - Workflow inputs and schema parameters
-        inputs_file = output_path / "inputs.md"
-        inputs_file.write_text(self._render_inputs(pipeline) + "\n\n" + footer, encoding="utf-8")
-        created_files.append(inputs_file)
+        pages: dict[str, str] = {
+            # index.md - Pipeline overview
+            "index.md": self._render_index(pipeline),
+            # inputs.md - Workflow inputs and schema parameters
+            "inputs.md": self._render_inputs(pipeline),
+        }
 
         # config.md - Non-input parameters (only if they exist)
         if pipeline.config_params:
-            config_file = output_path / "config.md"
-            config_file.write_text(
-                self._render_config(pipeline) + "\n\n" + footer, encoding="utf-8"
-            )
-            created_files.append(config_file)
+            pages["config.md"] = self._render_config(pipeline)
 
         # workflows.md - All workflows
         if pipeline.workflows:
-            workflows_file = output_path / "workflows.md"
-            workflows_file.write_text(
-                self._render_workflows(pipeline) + "\n\n" + footer, encoding="utf-8"
-            )
-            created_files.append(workflows_file)
+            pages["workflows.md"] = self._render_workflows(pipeline)
 
         # processes.md - All processes
         if pipeline.processes:
-            processes_file = output_path / "processes.md"
-            processes_file.write_text(
-                self._render_processes(pipeline) + "\n\n" + footer, encoding="utf-8"
-            )
-            created_files.append(processes_file)
+            pages["processes.md"] = self._render_processes(pipeline)
 
         # functions.md - Helper functions (only if they exist)
         if pipeline.functions:
-            functions_file = output_path / "functions.md"
-            functions_file.write_text(
-                self._render_functions(pipeline) + "\n\n" + footer, encoding="utf-8"
-            )
-            created_files.append(functions_file)
+            pages["functions.md"] = self._render_functions(pipeline)
 
-        return created_files
+        footer = self._markdown_footer()
+        return {name: content + footer for name, content in pages.items()}
 
     def render_single_file(self, pipeline: Pipeline) -> str:
         """

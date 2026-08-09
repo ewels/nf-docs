@@ -10,11 +10,27 @@
 - `PipelineExtractor` accepts a `config=` argument, so callers can supply an `NfDocsConfig` instead
   of relying on the global instance
 - New "Python API" documentation page
+- `nf_docs.render_pages()` and `BaseRenderer.render_pages()`, returning `{filename: content}` for
+  every file a format produces. Markdown's per-page output was previously only reachable by writing
+  to a directory, so library callers had to round-trip through a temporary folder to consume it.
+  Which keys appear depends on the pipeline — Markdown only emits `config.md`, `workflows.md`,
+  `processes.md` and `functions.md` when there is something to put in them
+- `include_generation_info=False` on every renderer, for byte-reproducible output. It removes the
+  Markdown and table footers, the JSON `generated_by` key, and the HTML generation footer — all of
+  which carry a timestamp. Being a renderer option, it reaches `render()`, `render_pages()` and
+  `generate()` through their `**renderer_kwargs`
 - Every `NfDocsConfig` option now takes effect. `ignore_input_prefixes`, `include_hidden_params`,
   `max_readme_length` and `exclude_patterns` were documented but never consulted; `default_format`
   was ignored in favour of a hardcoded `html`
 - Restored the `nf-docs config` command (`--path`, `--show-example`, `--init`), which had been
   removed by accident along with the config wiring
+
+### Changed
+
+- `BaseRenderer.render_to_directory()` is now implemented in the base class and writes what
+  `render_pages()` returns, so `render_pages()` is the abstract method a renderer has to provide
+  instead. The five built-in renderers behave exactly as before; a subclass outside this repository
+  that implemented `render_to_directory()` keeps working, but needs a `render_pages()` too
 
 ### Fixed
 
@@ -45,9 +61,8 @@
 
 ### Upgrading
 
-Six config options previously had no effect. If you already have a
-`~/.config/nf-docs/config.yaml`, its settings now apply for the first time, and your output may
-change:
+Six config options previously had no effect. If you already have a `~/.config/nf-docs/config.yaml`,
+its settings now apply for the first time, and your output may change:
 
 - `include_hidden_params: false` — parameters marked `hidden` in `nextflow_schema.json` disappear
   from the documentation. This is the option doing what it says, but it is a visible change; delete
@@ -56,6 +71,7 @@ change:
 - `default_format` — `nf-docs generate` without `-f` uses it instead of always producing HTML
 
 Run `nf-docs config` to see the settings currently in effect.
+
 - Output path policy (format aliases, single-module detection, default filenames) moved from
   `cli.py` into a new `nf_docs.output` module so the CLI and the Python API share one implementation
 - Library callers now get `NfDocsConfig()` defaults rather than the user's

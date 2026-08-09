@@ -8,6 +8,8 @@ and the renderers in three functions:
 - :func:`extract` — read a pipeline (or a single module) into a
   :class:`~nf_docs.models.Pipeline` model
 - :func:`render` — turn a ``Pipeline`` into a string in a given format
+- :func:`render_pages` — turn a ``Pipeline`` into ``{filename: content}``, for
+  formats that produce more than one file
 - :func:`generate` — do both and write the result to disk
 
 Unlike the CLI, these functions never print to the console and never exit the
@@ -36,7 +38,7 @@ from nf_docs.output import (
 from nf_docs.progress import ProgressCallbackType
 from nf_docs.renderers import get_renderer
 
-__all__ = ["extract", "render", "generate"]
+__all__ = ["extract", "render", "render_pages", "generate"]
 
 
 def _extract_resolved(
@@ -144,8 +146,8 @@ def render(
         single_file: Render the focused single-document form used for modules
             rather than the full pipeline form
         **renderer_kwargs: Extra keyword arguments for the specific renderer,
-            e.g. ``use_tailwind`` (HTML), ``indent`` (JSON),
-            ``default_flow_style`` (YAML)
+            e.g. ``include_generation_info`` (all formats), ``use_tailwind``
+            (HTML), ``indent`` (JSON), ``default_flow_style`` (YAML)
 
     Returns:
         The rendered documentation as a string
@@ -157,6 +159,56 @@ def render(
     if single_file:
         return renderer.render_single_file(pipeline)
     return renderer.render(pipeline)
+
+
+def render_pages(
+    pipeline: Pipeline,
+    output_format: str = "html",
+    *,
+    title: str | None = None,
+    **renderer_kwargs: Any,
+) -> dict[str, str]:
+    """
+    Render a Pipeline model to a mapping of file name to file content.
+
+    This is the in-memory equivalent of writing to a directory: the keys are the
+    names :func:`generate` would create, relative to the output directory, and
+    the values are what it would write into them. Use it when something else
+    owns the destination - a static site generator, a build hook - and you'd
+    rather not round-trip through a temporary directory.
+
+    Only Markdown produces more than one file. It always returns ``index.md``
+    and ``inputs.md``, and adds ``config.md``, ``workflows.md``,
+    ``processes.md`` and ``functions.md`` when the pipeline has the
+    corresponding entries, so don't assume a fixed set of keys. HTML returns
+    ``index.html``, JSON and YAML a single ``<pipeline name>-api.json`` /
+    ``.yaml``, and ``table`` a ``README.md`` wrapped in the ``BEGIN_NF_DOCS``
+    markers.
+
+    Args:
+        pipeline: The Pipeline model to render
+        output_format: One of ``html``, ``markdown`` (or ``md``), ``table``,
+            ``json``, ``yaml``. Defaults to ``html`` for consistency with
+            :func:`render` and :func:`generate`, though ``markdown`` is the
+            format this function exists for.
+        title: Custom documentation title. Defaults to the pipeline name.
+        **renderer_kwargs: Extra keyword arguments for the specific renderer.
+            Pass ``include_generation_info=False`` for byte-reproducible output.
+
+    Returns:
+        Mapping of file name to file content
+
+    Raises:
+        ValueError: If ``output_format`` is not supported
+
+    Note:
+        ``table`` output written by :func:`generate` is injected into an
+        existing ``README.md`` when that file already carries the markers. That
+        depends on what's on disk, so it can't be expressed here - this function
+        always returns the standalone form.
+    """
+    renderer = get_renderer(normalize_format(output_format))(title=title, **renderer_kwargs)
+    return renderer.render_pages(pipeline)
 
 
 def generate(
@@ -192,7 +244,8 @@ def generate(
         title: Custom documentation title
         config, language_server_jar, nextflow_path, use_cache, force_refresh,
             progress_callback: See :func:`extract`.
-        **renderer_kwargs: Extra keyword arguments for the specific renderer
+        **renderer_kwargs: Extra keyword arguments for the specific renderer.
+            Pass ``include_generation_info=False`` for byte-reproducible output.
 
     Returns:
         The list of files written, in the order they were created

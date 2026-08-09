@@ -24,7 +24,7 @@ try:
 except Exception:
     __version__ = "unknown"
 
-from nf_docs.api import extract, generate, render
+from nf_docs.api import extract, generate, render, render_pages
 from nf_docs.cache import PipelineCache
 from nf_docs.config import NfDocsConfig, load_config
 from nf_docs.extractor import ExtractionError, PipelineExtractor, find_pipeline_root
@@ -59,6 +59,7 @@ __all__ = [
     # High-level API
     "extract",
     "render",
+    "render_pages",
     "generate",
     # Extraction
     "PipelineExtractor",

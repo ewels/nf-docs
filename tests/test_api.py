@@ -1,13 +1,14 @@
 """Tests for the high-level Python API (nf_docs.api)."""
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 import nf_docs
-from nf_docs.api import extract, generate, render
+from nf_docs.api import extract, generate, render, render_pages
 from nf_docs.config import NfDocsConfig
 from nf_docs.extractor import PipelineExtractor
 from nf_docs.models import ConfigParam, Pipeline, PipelineMetadata, Process
@@ -16,6 +17,22 @@ from nf_docs.output import (
     normalize_format,
     resolve_source,
 )
+
+
+class _AdvancingClock:
+    """
+    A ``datetime`` stand-in whose ``now()`` moves a second forward every call.
+
+    The suite runs inside a single wall-clock second, so without this the
+    reproducibility tests would compare equal whatever the flag did.
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def now(self, tz=None) -> datetime:
+        self.calls += 1
+        return datetime(2024, 1, 1, 12, 0, 0, tzinfo=tz) + timedelta(seconds=self.calls)
 
 
 @pytest.fixture
@@ -197,6 +214,139 @@ class TestRender:
             render(rendered_pipeline, "pdf")
 
 
+class TestRenderPages:
+    """Tests for nf_docs.render_pages()."""
+
+    def test_default_format_matches_render(self, rendered_pipeline: Pipeline) -> None:
+        """html, like render() and generate() - not markdown."""
+        assert set(render_pages(rendered_pipeline, use_tailwind=False)) == {"index.html"}
+
+    def test_markdown_returns_one_entry_per_page(self, rendered_pipeline: Pipeline) -> None:
+        pages = render_pages(rendered_pipeline, "markdown")
+        assert set(pages) == {"index.md", "inputs.md", "processes.md"}
+
+    @pytest.mark.parametrize("output_format", ["html", "markdown", "table", "json", "yaml"])
+    def test_all_formats(self, rendered_pipeline: Pipeline, output_format: str) -> None:
+        pages = render_pages(rendered_pipeline, output_format)
+        assert pages
+        assert all(isinstance(name, str) and content for name, content in pages.items())
+
+    def test_md_alias(self, rendered_pipeline: Pipeline) -> None:
+        assert render_pages(rendered_pipeline, "md") == render_pages(rendered_pipeline, "markdown")
+
+    def test_title_override(self, rendered_pipeline: Pipeline) -> None:
+        pages = render_pages(rendered_pipeline, "markdown", title="Renamed")
+        assert "# Renamed" in pages["index.md"]
+
+    def test_renderer_kwargs_are_passed(self, rendered_pipeline: Pipeline) -> None:
+        pages = render_pages(rendered_pipeline, "json", indent=4)
+        assert '\n    "pipeline"' in next(iter(pages.values()))
+
+    def test_unsupported_format(self, rendered_pipeline: Pipeline) -> None:
+        with pytest.raises(ValueError, match="Unsupported format"):
+            render_pages(rendered_pipeline, "pdf")
+
+    def test_matches_what_generate_writes(self, sample_pipeline: Path, tmp_path: Path) -> None:
+        """
+        The consumer-facing promise: render_pages() replaces generating into a
+        throwaway directory and reading the files back.
+        """
+        out = tmp_path / "docs"
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            pipeline = extract(sample_pipeline)
+            created = generate(
+                sample_pipeline,
+                output_format="markdown",
+                output=out,
+                include_generation_info=False,
+            )
+
+        pages = render_pages(pipeline, "markdown", include_generation_info=False)
+
+        assert {p.name for p in created} == set(pages)
+        for path in created:
+            assert path.read_text(encoding="utf-8") == pages[path.name]
+
+
+class TestReproducibleOutput:
+    """include_generation_info=False reaches the renderers through the facade."""
+
+    @pytest.mark.parametrize("output_format", ["html", "markdown", "table", "json", "yaml"])
+    def test_render_is_byte_identical(
+        self, rendered_pipeline: Pipeline, output_format: str, monkeypatch
+    ) -> None:
+        monkeypatch.setattr("nf_docs.generation_info.datetime", _AdvancingClock())
+        kwargs = {"use_tailwind": False} if output_format == "html" else {}
+
+        first = render(
+            rendered_pipeline, output_format, include_generation_info=False, **kwargs
+        ).encode("utf-8")
+        second = render(
+            rendered_pipeline, output_format, include_generation_info=False, **kwargs
+        ).encode("utf-8")
+
+        assert first == second
+
+    @pytest.mark.parametrize("output_format", ["html", "markdown", "table", "json", "yaml"])
+    def test_render_pages_is_byte_identical(
+        self, rendered_pipeline: Pipeline, output_format: str, monkeypatch
+    ) -> None:
+        monkeypatch.setattr("nf_docs.generation_info.datetime", _AdvancingClock())
+        kwargs = {"use_tailwind": False} if output_format == "html" else {}
+
+        first = render_pages(
+            rendered_pipeline, output_format, include_generation_info=False, **kwargs
+        )
+        second = render_pages(
+            rendered_pipeline, output_format, include_generation_info=False, **kwargs
+        )
+
+        assert first == second
+
+    def test_generate_writes_identical_bytes(self, sample_pipeline: Path, tmp_path: Path) -> None:
+        """The actual requirement: two builds produce the same files on disk."""
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            with patch("nf_docs.generation_info.datetime", _AdvancingClock()):
+                first = generate(
+                    sample_pipeline,
+                    output_format="markdown",
+                    output=tmp_path / "first",
+                    include_generation_info=False,
+                )
+                second = generate(
+                    sample_pipeline,
+                    output_format="markdown",
+                    output=tmp_path / "second",
+                    include_generation_info=False,
+                )
+
+        assert [p.name for p in first] == [p.name for p in second]
+        for a, b in zip(first, second, strict=True):
+            assert a.read_bytes() == b.read_bytes()
+
+    def test_single_file_output_is_reproducible(self, module_dir: Path) -> None:
+        """Single-module output goes through render_single_file(), not render()."""
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            with patch("nf_docs.generation_info.datetime", _AdvancingClock()):
+                pipeline = extract(module_dir)
+                first = render(
+                    pipeline,
+                    "html",
+                    single_file=True,
+                    use_tailwind=False,
+                    include_generation_info=False,
+                )
+                second = render(
+                    pipeline,
+                    "html",
+                    single_file=True,
+                    use_tailwind=False,
+                    include_generation_info=False,
+                )
+
+        assert first == second
+
+
 class TestGenerate:
     """Tests for nf_docs.generate()."""
 
@@ -262,6 +412,7 @@ class TestPublicSurface:
     def test_facade_is_exported(self) -> None:
         assert nf_docs.extract is extract
         assert nf_docs.render is render
+        assert nf_docs.render_pages is render_pages
         assert nf_docs.generate is generate
 
     def test_py_typed_marker_ships(self) -> None:

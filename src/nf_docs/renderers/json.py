@@ -5,7 +5,6 @@ Outputs pipeline documentation as structured JSON data.
 """
 
 import json
-from pathlib import Path
 
 from nf_docs.generation_info import get_generation_info
 from nf_docs.models import Pipeline
@@ -22,15 +21,23 @@ class JSONRenderer(BaseRenderer):
     - API responses
     """
 
-    def __init__(self, title: str | None = None, indent: int = 2):
+    def __init__(
+        self,
+        title: str | None = None,
+        indent: int = 2,
+        *,
+        include_generation_info: bool = True,
+    ):
         """
         Initialize the JSON renderer.
 
         Args:
             title: Optional custom title (included in output)
             indent: JSON indentation level (default: 2)
+            include_generation_info: Whether to include the ``generated_by``
+                key, which carries a timestamp
         """
-        super().__init__(title)
+        super().__init__(title, include_generation_info=include_generation_info)
         self.indent = indent
 
     def render(self, pipeline: Pipeline) -> str:
@@ -50,31 +57,19 @@ class JSONRenderer(BaseRenderer):
             data["pipeline"]["name"] = self.title
 
         # Add generation metadata
-        data["generated_by"] = get_generation_info()
+        if self.include_generation_info:
+            data["generated_by"] = get_generation_info()
 
         return json.dumps(data, indent=self.indent, ensure_ascii=False)
 
-    def render_to_directory(self, pipeline: Pipeline, output_dir: str | Path) -> list[Path]:
+    def render_pages(self, pipeline: Pipeline) -> dict[str, str]:
         """
-        Render the pipeline to a directory.
-
-        For JSON, this creates a single file.
+        Render the pipeline as a single ``<pipeline name>-api.json`` file.
 
         Args:
             pipeline: The Pipeline model to render
-            output_dir: Output directory path
 
         Returns:
-            List containing the single output file path
+            Mapping with one entry: the JSON file name and its content
         """
-        output_path = Path(output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Determine filename from pipeline name
-        name = pipeline.metadata.name or "pipeline"
-        # Clean name for filename
-        clean_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in name)
-        filename = output_path / f"{clean_name}-api.json"
-
-        self.render_to_file(pipeline, filename)
-        return [filename]
+        return {self._api_filename(pipeline, "json"): self.render(pipeline)}
