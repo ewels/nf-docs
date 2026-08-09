@@ -922,6 +922,7 @@
       class="fixed top-0 left-0 right-0 h-14 bg-white border-b border-slate-200 z-50 flex items-center px-4 md:px-6"
     >
       <!-- Mobile menu button -->
+      
       <button
         id="mobile-menu-btn"
         class="md:hidden mr-3 p-1.5 rounded hover:bg-slate-100 transition-colors"
@@ -936,6 +937,7 @@
           ></path>
         </svg>
       </button>
+      
 
       <!-- Left: Organization/user avatar (GitHub only) and pipeline name -->
       <a
@@ -946,7 +948,7 @@
         
         <img
           id="repo-avatar"
-          src="data:image/png;base64,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"
+          src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAE50lEQVR4nOxYXYwTVRuemTMzbee33W53226X74PG7IoKJIpCxEQhapRsRC+ISCAm/hE0ISHRmJDwE+OFUZeExHAhJkjCFYqQgDGBQAwgLlmMoOsCotItlG13+z8znen0zDEH7ToXa2inzTY1fW52n7fnfc/zzJz3nJmhiDZHx0Cr0THQanQMtBodA60G3fSKgKbYcDTKBCLzKU6SSZq+60WCxVxavXjipJPpmmZAeOTZ1fKT6zd5BpaupBiWqydX/2PsQssMALnbF3xz9+f8oseGGq3lBA0ZoHhZ7H/v8Hdsz7zB5kmqDw0ZCLy886PZxFslJWPEr16GxWwamQa8Wx0zFb/uVINjA0x4wXxpxZpX7DH9xi8jqf073tKvjI4SBHJaui44NiA8/MwLJEmCKi8nJ67Ed65diXRFa5q6GuD4HHBHFz1k5/mTB/fOtXiikTsAOKnbzs1U/Hc7Fwa9S9hud7iWWhXFzBd+TJ9zoqOBJv5n+fxFCctOQ2vmv+NfEVpXSyX1t/zoT1vOLXWiou0fJdregOMlZExcuUwAaiYfFjIZ+++luDJeGMt8O+ukAuPl/icudjq3HWQzitQL+cHAE/fuWnqqytu+BxBCdz2t/w0tMQA8QLRzM1dOOK3luAfc0SUPUILXV+XGjbGfYX5qpg+4BdIg43P1zJbb81T/q3auXMuNONXh2ED3+nd3cwuXraryxO7NQ8rI18eqvG9tdHst5wCykDl9+tZBpzpa3gOTx2PDxu3STaf5LTWQvzR9PLZvfFsjNZr/TlwD8K6TPD4xHPtsfBsBne9AxFwawKL1hDaeHUkeTX4z8amR0GLNqOv4IGPnDQwCTpKr3Lh1/apVzOaq3B3ho4zE4idWWFHMgjFVmrBKUG+G6P8UWr4LNYp6egAE/P69iqoeKOn62dkGdMne7YAGfdOZzBaE0J3lwtLMoCxLW6tjEEKaomqHdEO/8wLDMMwAzsN/K5VKLJPL7Sqb5cu1iqr5DuD3X0kQX2MZZtZPKDSg+72yvEMSxNd5DzfzjYim6T6cR5Ikj+dzu1zLw729pwBF4f4gwz29J2gaRIqKsp+iSCkcDJ6mSEqqVVfTdiFR4DdYlpUyK+avoiBsVDT1kP33dDa7FUKYdLvcy/qCwfMUAF0IEQZN0/35YnFPvlj4pKgqByVB3EBSJEdAojCnBgReWK9q2pGyaY75fb5hfBUtZM2IiITCPxAEgoACAaNsnDdN8xqOa6XSMb/P96FXkt7WDeNMUVUOQAgna523KU3MMswAyzALLWRN4x2VJEmG57nn7WOmM+lNyampl/CdcLGu5ZzH8zSO304lh+K3E/fnCoUPAKD8wUDPUd7DrZ5TAwLPr0MImZIgvtHl9b6PECoJHP+ifYxuGBd0wziraupXxJ2eAf24byKh0CigqN5cIT98a3JyFUKoTNP0PbXOXfcS8vu69nR5fR/j/yuwEosnEotFXthYVJR9U5n0ZhyXRXEzHkcDEKrmRULhS/jZE1DAW4Hwpqpph6FlZSwLFYKBniPYHEPT/7csK6dq2pe16qnnJCZ5jnvOHsBbYknXz+DlYBjlixVYieM4RVFej9v9OL7qBCJMt9v1qC1H0XX9ewsh5e8QEDhuiGHY+yzLyiqa+gWEMFWHrvZG25/EHQOtRsdAq/FnAAAA//9fFfKsG94jEAAAAABJRU5ErkJggg=="
           alt="Organization avatar"
           class="w-6 h-6 rounded mr-2"
         />
@@ -962,6 +964,7 @@
       <!-- Right: Search and GitHub link -->
       <div class="ml-auto flex items-center gap-4">
         <!-- Search (hidden on mobile, shown in mobile menu) -->
+        
         <div class="relative hidden md:block">
           <input
             type="text"
@@ -984,6 +987,7 @@
             </svg>
           </button>
         </div>
+        
 
         <!-- Dark mode toggle -->
         <button
@@ -1015,7 +1019,7 @@
         <!-- Repository link -->
         
         <a
-          href="https://github.com/fulcrumgenomics/nf-fgsv"
+          href="https://github.com/fg-labs/nf-fgsv"
           target="_blank"
           rel="noopener noreferrer"
           class="flex items-center gap-1.5 text-sm text-slate-600 hover:text-primary transition-colors"
@@ -1037,6 +1041,7 @@
       </div>
     </header>
 
+    
     <!-- Mobile Navigation Drawer -->
     <div
       id="mobile-menu-overlay"
@@ -1066,6 +1071,7 @@
       </div>
 
       <!-- Mobile Navigation Links -->
+      
       <div id="mobile-main-nav">
         <nav class="p-4 border-b border-slate-200">
           <!-- Search link for mobile -->
@@ -1147,7 +1153,7 @@
           
           <div class="mt-6 pt-4 border-t border-slate-200">
             <a
-              href="https://github.com/fulcrumgenomics/nf-fgsv"
+              href="https://github.com/fg-labs/nf-fgsv"
               target="_blank"
               rel="noopener noreferrer"
               class="flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-primary transition-colors"
@@ -1166,6 +1172,7 @@
           
         </nav>
       </div>
+      
 
       <!-- Mobile Table of Contents (hidden by default) -->
       <div id="mobile-toc-nav" class="hidden h-full flex flex-col">
@@ -1192,8 +1199,10 @@
         </nav>
       </div>
     </aside>
+    
 
     <div class="flex min-h-screen pt-14">
+      
       <!-- Left Sidebar - Main Navigation -->
       <aside
         id="left-nav"
@@ -1241,10 +1250,15 @@
           </ul>
         </nav>
       </aside>
+      
 
       <!-- Main content -->
-      <main class="md:ml-56 lg:mr-64 flex-1 p-4 md:p-8 lg:p-12">
+      <main
+        class="md:ml-56 lg:mr-64 flex-1 p-4 md:p-8 lg:p-12"
+      >
+        
         <!-- Search Results Section (hidden by default) -->
+        
         <section id="search-results" class="section hidden">
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Search Results</h1>
 
@@ -1305,7 +1319,7 @@
             <p class="text-sm mt-2">Try a different search term</p>
           </div>
         </section>
-
+         
         <!-- Overview Section -->
         <section id="overview" class="section">
           <h1 class="text-3xl font-bold mb-4 text-slate-800">nf-fgsv workflow parameters</h1>
@@ -1316,7 +1330,7 @@
           <div class="flex flex-wrap gap-4 mb-6">
              
             <a
-              href="https://github.com/fulcrumgenomics/nf-fgsv"
+              href="https://github.com/fg-labs/nf-fgsv"
               target="_blank"
               class="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
             >
@@ -1328,7 +1342,7 @@
                   d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
                 ></path>
               </svg>
-               https://github.com/fulcrumgenomics/nf-fgsv
+               https://github.com/fg-labs/nf-fgsv
             </a>
             
           </div>
@@ -1336,6 +1350,19 @@
           <div id="readme-content" class="prose max-w-none text-slate-600">
             <div class="alert alert-note"><div class="alert-title"><svg class="alert-icon" viewBox="0 0 16 16" width="16" height="16"><path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8Zm8-6.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM6.5 7.75A.75.75 0 0 1 7.25 7h1a.75.75 0 0 1 .75.75v2.75h.25a.75.75 0 0 1 0 1.5h-2a.75.75 0 0 1 0-1.5h.25v-2h-.25a.75.75 0 0 1-.75-.75ZM8 6a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z"></path></svg><span>Note</span></div><div class="alert-content"><p>This repository is primarily for testing the latest Nextflow features and the workflow is relatively simple.</p></div></div>
 <p>This is a Nextflow workflow for running <a href="https://github.com/fulcrumgenomics/fgsv">fgsv</a> on a BAM file to gather evidence for structural variation via breakpoint detection.</p>
+<p>
+<a href="https://fulcrumgenomics.com">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/fg-labs/nf-fgsv/main/.github/logos/fulcrumgenomics-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/fg-labs/nf-fgsv/main/.github/logos/fulcrumgenomics-light.svg">
+  <img alt="Fulcrum Genomics" src="https://raw.githubusercontent.com/fg-labs/nf-fgsv/main/.github/logos/fulcrumgenomics-light.svg" height="100" width="25%">
+</picture>
+</a>
+</p>
+
+<p><a href="https://www.fulcrumgenomics.com">Visit us at Fulcrum Genomics</a> to learn more about how we can power your Bioinformatics with nf-fgsv and beyond.</p>
+<p><a href="mailto:contact@fulcrumgenomics.com?subject=[GitHub inquiry]"><img src="https://img.shields.io/badge/Email_us-%2338b44a.svg?&style=for-the-badge&logo=gmail&logoColor=white"/></a>
+<a href="https://www.fulcrumgenomics.com"><img src="https://img.shields.io/badge/Visit_Us-%2326a8e0.svg?&style=for-the-badge&logo=wordpress&logoColor=white"/></a></p>
 <h2 id="readme-set-up-environment" class="heading-anchor">Set up Environment<a href="#readme-set-up-environment" class="paragraph-link">¶</a></h2>
 <p>Make sure <a href="https://pixi.sh/latest/#installation">Pixi</a> and <a href="https://docs.docker.com/engine/install/">Docker</a> are installed.</p>
 <p>The environment for this analysis is in <a href="pixi.toml">pixi.toml</a> and is named <code>nf-fgsv</code>.</p>
@@ -1463,8 +1490,10 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
           </ul>
           
         </section>
+        
 
         <!-- Inputs Section -->
+        
         <section id="inputs" class="section hidden">
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Pipeline Inputs</h1>
           <p class="mb-4 text-slate-600">
@@ -1516,22 +1545,27 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
               
             </div>
             
-            <div class="prose mb-2 text-slate-600"><p>Path to tab-separated file containing information about the samples in the experiment.</p></div>
+            <div class="prose mb-2 text-slate-600"><p>Path to a tab-separated values (TSV) sample sheet describing the samples to analyze. The file must have a header row with the following required columns:</p>
+<ul>
+<li><code>sample</code>: a unique sample identifier containing no whitespace; used as the <code>meta.id</code> that names per-sample outputs.</li>
+<li><code>bam</code>: path to an existing BAM file for the sample (must end in <code>.bam</code>).</li>
+</ul>
+<p>See <code>schemas/input_schema.json</code> for the full validation rules.</p></div>
                
           </div>
            
         </section>
-
+         
         <!-- Config Section -->
-        
+         
 
         <!-- Workflows Section -->
         
         <section id="workflows" class="section hidden">
+          
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Workflows</h1>
           <p class="mb-4 text-slate-600">This page documents all workflows in the pipeline.</p>
-
-          
+           
           <div
             id="workflow-entry"
             class="bg-white border border-slate-200 rounded-lg p-4 mb-4"
@@ -1550,7 +1584,7 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
               </span>
                
               <a
-                href="https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/main.nf#L19-L42"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/main.nf#L35-L51"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1562,7 +1596,7 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
             </div>
             
             <div class="text-xs text-slate-400 mb-2">
-              Defined in <code>main.nf:19</code>
+              Defined in <code>main.nf:35</code>
             </div>
             
 
@@ -1573,6 +1607,19 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
             
 
             <!-- Code documentation (Groovydoc) - show if present and different from meta description -->
+             
+            <div class="prose mb-4 text-slate-600"><p>Detect structural-variant breakpoints from aligned reads using fgsv.
+The <code>--input</code> sample sheet provides one <code>sample</code> identifier and <code>bam</code> path per
+row (see the <code>--input</code> parameter for the full column specification). Every
+per-sample output — the sorted BAM, SvPileup BAM and text, aggregated
+breakpoints, and BEDPE — is published via the <code>sample_outputs</code> topic into a
+directory named after the sample's <code>meta.id</code>. For each sample the workflow runs:</p>
+<ol>
+<li><code>COORDINATE_SORT</code> — coordinate-sort the input BAM with samtools.</li>
+<li><code>SV_PILEUP</code> — gather read-level evidence for structural variants (fgsv SvPileup).</li>
+<li><code>AGGREGATE_SV_PILEUP</code> — merge pileups that likely support the same breakpoint.</li>
+<li><code>AGGREGATE_SV_PILEUP_TO_BEDPE</code> — convert the aggregated breakpoints to BEDPE.</li>
+</ol></div>
             
 
             <!-- Components section (from meta.yml - modules/subworkflows used) -->
@@ -1594,10 +1641,10 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
         <!-- Processes Section -->
         
         <section id="processes" class="section hidden">
+          
           <h1 class="text-3xl font-bold mb-4 text-slate-800">Processes</h1>
           <p class="mb-4 text-slate-600">This page documents all processes in the pipeline.</p>
-
-          
+           
           <div
             id="process-AGGREGATE_SV_PILEUP"
             class="bg-white border border-slate-200 rounded-lg p-4 mb-4"
@@ -1610,7 +1657,7 @@ It must be specified on the command line or in a <code>nextflow.config</code> fi
               <span class="font-bold text-primary-dark">AGGREGATE_SV_PILEUP</span>
               
               <a
-                href="https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/aggregate_sv_pileup.nf#L12-L33"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup.nf#L12-L36"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1664,17 +1711,53 @@ using fgsv AggregateSvPileup.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>path(bam)<wbr>,<wbr> <wbr>path(txt)<wbr></code
+                        >meta</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >val</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p><code>meta</code>: Map containing sample information (must include 'id'); <code>bam</code>: Input BAM file; <code>txt</code>: SvPileup breakpoint output file</p></div>
+                      <div class="prose prose-sm"><p>Map containing sample information (must include 'id')</p></div>
+                      
+                    </td>
+                  </tr>
+                  
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >bam</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Input BAM file</p></div>
+                      
+                    </td>
+                  </tr>
+                  
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >txt</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>SvPileup breakpoint output file</p></div>
                       
                     </td>
                   </tr>
@@ -1710,24 +1793,24 @@ using fgsv AggregateSvPileup.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>file("*_svpileup.aggregate.txt")<wbr></code
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>txt:<wbr> <wbr>Path</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >record</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >txt</code
+                        >aggregated</code
                       >
                       
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p>Tuple of meta and aggregated SvPileup output file</p></div>
+                      <div class="prose prose-sm"><p>Record of meta and the aggregated SvPileup output file (txt)</p></div>
                       
                     </td>
                   </tr>
@@ -1753,7 +1836,7 @@ using fgsv AggregateSvPileup.</p></div>
               <span class="font-bold text-primary-dark">AGGREGATE_SV_PILEUP_TO_BEDPE</span>
               
               <a
-                href="https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L31"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L34"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1807,17 +1890,35 @@ AggregateSvPileupToBedPE.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>path(txt)<wbr></code
+                        >meta</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >val</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p><code>meta</code>: Map containing sample information (must include 'id'); <code>txt</code>: Aggregated SvPileup output file</p></div>
+                      <div class="prose prose-sm"><p>Map containing sample information (must include 'id')</p></div>
+                      
+                    </td>
+                  </tr>
+                  
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >txt</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Aggregated SvPileup output file</p></div>
                       
                     </td>
                   </tr>
@@ -1853,12 +1954,12 @@ AggregateSvPileupToBedPE.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>file("*_svpileup.aggregate.bedpe")<wbr></code
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>bedpe:<wbr> <wbr>Path</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >record</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
@@ -1870,7 +1971,7 @@ AggregateSvPileupToBedPE.</p></div>
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p>Tuple of meta and BEDPE format output file</p></div>
+                      <div class="prose prose-sm"><p>Record of meta and the BEDPE format output file (bedpe)</p></div>
                       
                     </td>
                   </tr>
@@ -1896,7 +1997,7 @@ AggregateSvPileupToBedPE.</p></div>
               <span class="font-bold text-primary-dark">COORDINATE_SORT</span>
               
               <a
-                href="https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/coordinate_sort.nf#L10-L31"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/coordinate_sort.nf#L10-L31"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -1949,17 +2050,35 @@ AggregateSvPileupToBedPE.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>path(bam)<wbr></code
+                        >meta</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >val</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p><code>meta</code>: Map containing sample information (must include 'id'); <code>bam</code>: Input BAM file to be sorted</p></div>
+                      <div class="prose prose-sm"><p>Map containing sample information (must include 'id')</p></div>
+                      
+                    </td>
+                  </tr>
+                  
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >bam</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Input BAM file to be sorted</p></div>
                       
                     </td>
                   </tr>
@@ -1995,24 +2114,24 @@ AggregateSvPileupToBedPE.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>file("*_sorted.bam")<wbr></code
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>bam:<wbr> <wbr>Path</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >record</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >bam</code
+                        >sorted</code
                       >
                       
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p>Tuple of meta and coordinate-sorted BAM file</p></div>
+                      <div class="prose prose-sm"><p>Record of meta and the coordinate-sorted BAM file (bam)</p></div>
                       
                     </td>
                   </tr>
@@ -2038,7 +2157,7 @@ AggregateSvPileupToBedPE.</p></div>
               <span class="font-bold text-primary-dark">SV_PILEUP</span>
               
               <a
-                href="https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/sv_pileup.nf#L11-L33"
+                href="https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/sv_pileup.nf#L10-L35"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="ml-2 text-slate-400 hover:text-primary no-underline"
@@ -2050,7 +2169,7 @@ AggregateSvPileupToBedPE.</p></div>
             </div>
             
             <div class="text-xs text-slate-400 mb-2">
-              Defined in <code>modules/sv_pileup.nf:11</code>
+              Defined in <code>modules/sv_pileup.nf:10</code>
             </div>
             
 
@@ -2091,17 +2210,35 @@ AggregateSvPileupToBedPE.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>path(bam)<wbr></code
+                        >meta</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >val</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p><code>meta</code>: Map containing sample information (must include 'id'); <code>bam</code>: Input BAM file</p></div>
+                      <div class="prose prose-sm"><p>Map containing sample information (must include 'id')</p></div>
+                      
+                    </td>
+                  </tr>
+                  
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >bam</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
+                        >path</code
+                      >
+                    </td>
+                    <td class="p-3 border-b border-slate-200">
+                      
+                      <div class="prose prose-sm"><p>Input BAM file</p></div>
                       
                     </td>
                   </tr>
@@ -2137,49 +2274,24 @@ AggregateSvPileupToBedPE.</p></div>
                   <tr class="hover:bg-slate-50">
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>file("*_svpileup.txt")<wbr></code
+                        >meta:<wbr> <wbr>Map,<wbr> <wbr>bam:<wbr> <wbr>Path,<wbr> <wbr>txt:<wbr> <wbr>Path</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
-                      >
-                    </td>
-                    <td class="p-3 border-b border-slate-200">
-                      
-                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >txt</code
-                      >
-                      
-                    </td>
-                    <td class="p-3 border-b border-slate-200">
-                      
-                      <div class="prose prose-sm"><p>Tuple of meta and SvPileup breakpoint output file</p></div>
-                      
-                    </td>
-                  </tr>
-                  
-                  <tr class="hover:bg-slate-50">
-                    <td class="p-3 border-b border-slate-200">
-                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >val(meta)<wbr>,<wbr> <wbr>file("*_svpileup.bam")<wbr></code
-                      >
-                    </td>
-                    <td class="p-3 border-b border-slate-200">
-                      <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >tuple</code
+                        >record</code
                       >
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
                       <code class="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-sm"
-                        >bam</code
+                        >result</code
                       >
                       
                     </td>
                     <td class="p-3 border-b border-slate-200">
                       
-                      <div class="prose prose-sm"><p>Tuple of meta and SvPileup BAM file</p></div>
+                      <div class="prose prose-sm"><p>Record of meta, the SvPileup BAM file (bam), and the breakpoint output file (txt)</p></div>
                       
                     </td>
                   </tr>
@@ -2270,13 +2382,14 @@ AggregateSvPileupToBedPE.</p></div>
               <a href="https://github.com/ewels/nf-docs" target="_blank" rel="noopener noreferrer"
                 >nf-docs</a
               >
-              <span class="nf-docs-version">v0.2.0</span>
-              <span>on 2026-03-03 19:13:28 UTC</span>
+              <span class="nf-docs-version">v0.4.0</span>
+              <span>on 2026-06-03 18:53:19 UTC</span>
             </div>
           </div>
         </footer>
       </main>
 
+      
       <!-- Right Sidebar - Page Table of Contents -->
       <aside
         id="right-nav"
@@ -2395,9 +2508,11 @@ AggregateSvPileupToBedPE.</p></div>
         <!-- Functions TOC -->
         
       </aside>
+      
     </div>
 
     <script>
+      
       // Track current section
       let currentSection = 'overview';
 
@@ -2652,7 +2767,7 @@ AggregateSvPileupToBedPE.</p></div>
           
           {
             name: "(entry)",
-            docstring: "",
+            docstring: "Detect structural-variant breakpoints from aligned reads using fgsv.\nThe `--input` sample sheet provides one `sample` identifier and `bam` path per\nrow (see the `--input` parameter for the full column specification). Every\nper-sample output \u2014 the sorted BAM, SvPileup BAM and text, aggregated\nbreakpoints, and BEDPE \u2014 is published via the `sample_outputs` topic into a\ndirectory named after the sample\u0027s `meta.id`. For each sample the workflow runs:\n1. `COORDINATE_SORT` \u2014 coordinate-sort the input BAM with samtools.\n2. `SV_PILEUP` \u2014 gather read-level evidence for structural variants (fgsv SvPileup).\n3. `AGGREGATE_SV_PILEUP` \u2014 merge pileups that likely support the same breakpoint.\n4. `AGGREGATE_SV_PILEUP_TO_BEDPE` \u2014 convert the aggregated breakpoints to BEDPE.",
             file: "main.nf",
             id: "workflow-entry",
             section: "workflows"
@@ -2701,7 +2816,7 @@ AggregateSvPileupToBedPE.</p></div>
           
           {
             name: "input",
-            description: "Path to tab-separated file containing information about the samples in the experiment.",
+            description: "Path to a tab-separated values (TSV) sample sheet describing the samples to analyze. The file must have a header row with the following required columns:\n\n- `sample`: a unique sample identifier containing no whitespace; used as the `meta.id` that names per-sample outputs.\n- `bam`: path to an existing BAM file for the sample (must end in `.bam`).\n\nSee `schemas/input_schema.json` for the full validation rules.",
             group: "Main workflow parameters",
             id: "param-input",
             section: "inputs"
@@ -3156,6 +3271,7 @@ AggregateSvPileupToBedPE.</p></div>
 
       mobileTocLink.addEventListener('click', showMobileToc);
       mobileTocBack.addEventListener('click', showMobileMainNav);
+      
 
       // ==================== Dark Mode Toggle ====================
 

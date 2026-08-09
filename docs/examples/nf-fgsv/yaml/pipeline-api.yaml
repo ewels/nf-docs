@@ -2,13 +2,21 @@ pipeline:
   name: nf-fgsv workflow parameters
   description: Nextflow workflow for running fgsv.
   version: 0.1.0
-  repository: https://github.com/fulcrumgenomics/nf-fgsv
+  repository: https://github.com/fg-labs/nf-fgsv
   authors:
   - Fulcrum Genomics
   readme_content: "> [!NOTE]  \n> This repository is primarily for testing the latest Nextflow features\
     \ and the workflow is relatively simple.\n\nThis is a Nextflow workflow for running [fgsv](https://github.com/fulcrumgenomics/fgsv)\
-    \ on a BAM file to gather evidence for structural variation via breakpoint detection.\n\n## Set up\
-    \ Environment\n\nMake sure [Pixi](https://pixi.sh/latest/#installation) and [Docker](https://docs.docker.com/engine/install/)\
+    \ on a BAM file to gather evidence for structural variation via breakpoint detection.\n\n<p>\n<a href=\"\
+    https://fulcrumgenomics.com\">\n<picture>\n  <source media=\"(prefers-color-scheme: dark)\" srcset=\"\
+    https://raw.githubusercontent.com/fg-labs/nf-fgsv/main/.github/logos/fulcrumgenomics-dark.svg\">\n\
+    \  <source media=\"(prefers-color-scheme: light)\" srcset=\"https://raw.githubusercontent.com/fg-labs/nf-fgsv/main/.github/logos/fulcrumgenomics-light.svg\"\
+    >\n  <img alt=\"Fulcrum Genomics\" src=\"https://raw.githubusercontent.com/fg-labs/nf-fgsv/main/.github/logos/fulcrumgenomics-light.svg\"\
+    \ height=\"100\" width=\"25%\">\n</picture>\n</a>\n</p>\n\n[Visit us at Fulcrum Genomics](https://www.fulcrumgenomics.com)\
+    \ to learn more about how we can power your Bioinformatics with nf-fgsv and beyond.\n\n<a href=\"\
+    mailto:contact@fulcrumgenomics.com?subject=[GitHub inquiry]\"><img src=\"https://img.shields.io/badge/Email_us-%2338b44a.svg?&style=for-the-badge&logo=gmail&logoColor=white\"\
+    /></a>\n<a href=\"https://www.fulcrumgenomics.com\"><img src=\"https://img.shields.io/badge/Visit_Us-%2326a8e0.svg?&style=for-the-badge&logo=wordpress&logoColor=white\"\
+    /></a>\n\n## Set up Environment\n\nMake sure [Pixi](https://pixi.sh/latest/#installation) and [Docker](https://docs.docker.com/engine/install/)\
     \ are installed.\n\nThe environment for this analysis is in [pixi.toml](pixi.toml) and is named `nf-fgsv`.\n\
     \nTo install:\n\n```console\npixi install\n```\n\n## Run the Workflow\n\nTo save on typing, a pixi\
     \ task is available which aliases `nextflow run main.nf`.\n\n```console\npixi run \\\n    nf-workflow\
@@ -44,7 +52,17 @@ pipeline:
 inputs:
 - name: input
   type: string
-  description: Path to tab-separated file containing information about the samples in the experiment.
+  description: 'Path to a tab-separated values (TSV) sample sheet describing the samples to analyze. The
+    file must have a header row with the following required columns:
+
+
+    - `sample`: a unique sample identifier containing no whitespace; used as the `meta.id` that names
+    per-sample outputs.
+
+    - `bam`: path to an existing BAM file for the sample (must end in `.bam`).
+
+
+    See `schemas/input_schema.json` for the full validation rules.'
   required: true
   format: file-path
   pattern: .*.tsv$
@@ -52,15 +70,33 @@ inputs:
 config_params: []
 workflows:
 - name: ''
-  docstring: ''
+  docstring: 'Detect structural-variant breakpoints from aligned reads using fgsv.
+
+    The `--input` sample sheet provides one `sample` identifier and `bam` path per
+
+    row (see the `--input` parameter for the full column specification). Every
+
+    per-sample output — the sorted BAM, SvPileup BAM and text, aggregated
+
+    breakpoints, and BEDPE — is published via the `sample_outputs` topic into a
+
+    directory named after the sample''s `meta.id`. For each sample the workflow runs:
+
+    1. `COORDINATE_SORT` — coordinate-sort the input BAM with samtools.
+
+    2. `SV_PILEUP` — gather read-level evidence for structural variants (fgsv SvPileup).
+
+    3. `AGGREGATE_SV_PILEUP` — merge pileups that likely support the same breakpoint.
+
+    4. `AGGREGATE_SV_PILEUP_TO_BEDPE` — convert the aggregated breakpoints to BEDPE.'
   file: main.nf
-  line: 19
-  end_line: 42
+  line: 35
+  end_line: 51
   inputs: []
   outputs: []
   calls: []
   is_entry: true
-  source_url: https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/main.nf#L19-L42
+  source_url: https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/main.nf#L35-L51
 processes:
 - name: AGGREGATE_SV_PILEUP_TO_BEDPE
   docstring: 'Convert aggregated SvPileup output to BEDPE format using fgsv
@@ -68,77 +104,90 @@ processes:
     AggregateSvPileupToBedPE.'
   file: modules/aggregate_sv_pileup_to_bedpe.nf
   line: 11
-  end_line: 31
+  end_line: 34
   inputs:
-  - name: val(meta), path(txt)
-    type: tuple
-    description: '`meta`: Map containing sample information (must include ''id''); `txt`: Aggregated SvPileup
-      output file'
-    qualifier: Tuple<Map, Path>
+  - name: meta
+    type: val
+    description: Map containing sample information (must include 'id')
+    qualifier: Map
+  - name: txt
+    type: path
+    description: Aggregated SvPileup output file
+    qualifier: Path
   outputs:
-  - name: val(meta), file("*_svpileup.aggregate.bedpe")
-    type: tuple
-    description: Tuple of meta and BEDPE format output file
+  - name: 'meta: Map, bedpe: Path'
+    type: record
+    description: Record of meta and the BEDPE format output file (bedpe)
     emit: bedpe
   directives: {}
-  source_url: https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L31
+  source_url: https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup_to_bedpe.nf#L11-L34
 - name: AGGREGATE_SV_PILEUP
   docstring: 'Aggregate and merge pileups that are likely to support the same breakpoint
 
     using fgsv AggregateSvPileup.'
   file: modules/aggregate_sv_pileup.nf
   line: 12
-  end_line: 33
+  end_line: 36
   inputs:
-  - name: val(meta), path(bam), path(txt)
-    type: tuple
-    description: '`meta`: Map containing sample information (must include ''id''); `bam`: Input BAM file;
-      `txt`: SvPileup breakpoint output file'
-    qualifier: Tuple<Map, Path, Path>
+  - name: meta
+    type: val
+    description: Map containing sample information (must include 'id')
+    qualifier: Map
+  - name: bam
+    type: path
+    description: Input BAM file
+    qualifier: Path
+  - name: txt
+    type: path
+    description: SvPileup breakpoint output file
+    qualifier: Path
   outputs:
-  - name: val(meta), file("*_svpileup.aggregate.txt")
-    type: tuple
-    description: Tuple of meta and aggregated SvPileup output file
-    emit: txt
+  - name: 'meta: Map, txt: Path'
+    type: record
+    description: Record of meta and the aggregated SvPileup output file (txt)
+    emit: aggregated
   directives: {}
-  source_url: https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/aggregate_sv_pileup.nf#L12-L33
+  source_url: https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/aggregate_sv_pileup.nf#L12-L36
 - name: COORDINATE_SORT
   docstring: Sort a BAM file by genomic coordinates using samtools sort.
   file: modules/coordinate_sort.nf
   line: 10
   end_line: 31
   inputs:
-  - name: val(meta), path(bam)
-    type: tuple
-    description: '`meta`: Map containing sample information (must include ''id''); `bam`: Input BAM file
-      to be sorted'
-    qualifier: Tuple<Map, Path>
+  - name: meta
+    type: val
+    description: Map containing sample information (must include 'id')
+    qualifier: Map
+  - name: bam
+    type: path
+    description: Input BAM file to be sorted
+    qualifier: Path
   outputs:
-  - name: val(meta), file("*_sorted.bam")
-    type: tuple
-    description: Tuple of meta and coordinate-sorted BAM file
-    emit: bam
+  - name: 'meta: Map, bam: Path'
+    type: record
+    description: Record of meta and the coordinate-sorted BAM file (bam)
+    emit: sorted
   directives: {}
-  source_url: https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/coordinate_sort.nf#L10-L31
+  source_url: https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/coordinate_sort.nf#L10-L31
 - name: SV_PILEUP
   docstring: Detect structural variant evidence from a BAM file using fgsv SvPileup.
   file: modules/sv_pileup.nf
-  line: 11
-  end_line: 33
+  line: 10
+  end_line: 35
   inputs:
-  - name: val(meta), path(bam)
-    type: tuple
-    description: '`meta`: Map containing sample information (must include ''id''); `bam`: Input BAM file'
-    qualifier: Tuple<Map, Path>
+  - name: meta
+    type: val
+    description: Map containing sample information (must include 'id')
+    qualifier: Map
+  - name: bam
+    type: path
+    description: Input BAM file
+    qualifier: Path
   outputs:
-  - name: val(meta), file("*_svpileup.txt")
-    type: tuple
-    description: Tuple of meta and SvPileup breakpoint output file
-    emit: txt
-  - name: val(meta), file("*_svpileup.bam")
-    type: tuple
-    description: Tuple of meta and SvPileup BAM file
-    emit: bam
+  - name: 'meta: Map, bam: Path, txt: Path'
+    type: record
+    description: Record of meta, the SvPileup BAM file (bam), and the breakpoint output file (txt)
+    emit: result
   directives: {}
-  source_url: https://github.com/fulcrumgenomics/nf-fgsv/blob/73e7adf5d96a2031f89519bbb378d8e19954aeb7/modules/sv_pileup.nf#L11-L33
+  source_url: https://github.com/fg-labs/nf-fgsv/blob/52b69d449465d9ce4980b7be9a656b1737e2ac38/modules/sv_pileup.nf#L10-L35
 functions: []
