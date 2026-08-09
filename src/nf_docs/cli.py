@@ -13,6 +13,7 @@ import rich_click as click
 import yaml
 from rich.console import Console
 from rich.logging import RichHandler
+from rich.markup import escape
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -201,9 +202,11 @@ def _resolve_output_format(output_format: str | None, config: NfDocsConfig) -> s
         get_renderer(config.default_format)
     except ValueError:
         fallback = NfDocsConfig().default_format
+        # escape(): the value is straight from the user's config file, and rich
+        # would read something like "[/]" as markup and raise.
         console.print(
-            f"[yellow]Ignoring unknown default_format {config.default_format!r} "
-            f"in {get_config_path()}, using {fallback}[/yellow]"
+            f"[yellow]Ignoring unknown default_format {escape(repr(config.default_format))} "
+            f"in {escape(str(get_config_path()))}, using {fallback}[/yellow]"
         )
         return fallback
 
@@ -660,10 +663,15 @@ def config(init_config: bool, show_example: bool, path: bool) -> None:
         # Create config file with defaults
         nf-docs config --init
     """
+    # Route load_config()'s warnings through the console, so a broken config
+    # file says so here rather than reaching stderr unformatted.
+    setup_logging(verbose=False)
     config_path = get_config_path()
 
     if path:
-        console.print(str(config_path))
+        # click.echo, not console.print: rich hard-wraps at the terminal width,
+        # which would split a long path across lines in `$(nf-docs config --path)`.
+        click.echo(str(config_path))
         return
 
     if show_example:
@@ -688,12 +696,16 @@ def config(init_config: bool, show_example: bool, path: bool) -> None:
     else:
         console.print("[dim]  (using defaults - file does not exist)[/dim]")
 
+    # Load before printing the header: a file that fails to parse warns here,
+    # so "settings in effect" isn't read as "contents of that file".
+    settings = load_config().to_dict()
+
     console.print()
-    console.print("[bold]Current settings:[/bold]")
+    console.print("[bold]Settings in effect:[/bold]")
 
     # Dump as YAML so what's printed is exactly what you'd write in the file.
     # click.echo rather than console.print, so rich doesn't read "[]" as markup.
-    click.echo(yaml.safe_dump(load_config().to_dict(), sort_keys=False))
+    click.echo(yaml.safe_dump(settings, sort_keys=False))
 
 
 if __name__ == "__main__":

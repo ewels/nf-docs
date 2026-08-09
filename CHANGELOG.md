@@ -42,6 +42,20 @@
 
 - `include_hidden_params` now defaults to `true`, matching the behaviour nf-docs has always had of
   showing hidden schema parameters. Set it to `false` to leave them out
+
+### Upgrading
+
+Six config options previously had no effect. If you already have a
+`~/.config/nf-docs/config.yaml`, its settings now apply for the first time, and your output may
+change:
+
+- `include_hidden_params: false` — parameters marked `hidden` in `nextflow_schema.json` disappear
+  from the documentation. This is the option doing what it says, but it is a visible change; delete
+  the line (or set `true`) to keep the previous output
+- `ignore_input_prefixes`, `max_readme_length`, `exclude_patterns` — likewise now honoured
+- `default_format` — `nf-docs generate` without `-f` uses it instead of always producing HTML
+
+Run `nf-docs config` to see the settings currently in effect.
 - Output path policy (format aliases, single-module detection, default filenames) moved from
   `cli.py` into a new `nf_docs.output` module so the CLI and the Python API share one implementation
 - Library callers now get `NfDocsConfig()` defaults rather than the user's

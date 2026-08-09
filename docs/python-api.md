@@ -213,7 +213,7 @@ The fields:
 | `ignore_config_prefixes`  | `["genomes."]` | Drops matching parameters from the Configuration section                        |
 | `ignore_input_prefixes`   | `[]`           | Drops matching parameters from the Parameters section                           |
 | `include_hidden_params`   | `True`         | Set `False` to leave out parameters marked `hidden` in `nextflow_schema.json`   |
-| `max_readme_length`       | `0`            | Trims README content to this many characters, on a line boundary. `0` = no limit |
+| `max_readme_length`       | `0`            | Trims README source text to this many characters, on a line boundary. `0` = no limit |
 | `strip_readme_badges`     | `True`         | Set `False` to keep the badge lines below a README's title                      |
 | `exclude_patterns`        | `[]`           | Extra paths the Language Server skips when indexing the workspace               |
 | `default_format`          | `"html"`       | CLI only — the format `nf-docs generate` uses without `-f/--format`             |
@@ -223,6 +223,12 @@ Configuration; it's left out of the documentation entirely.
 
 `exclude_patterns` is added to the exclusions nf-docs always sends (`.git`, `.nf-test`, `work`)
 rather than replacing them.
+
+`max_readme_length` caps the README source text. Local images are converted to base64 data URIs
+*after* the cut, so `readme_content` can still be large if the kept portion contains images.
+
+A value of the wrong type falls back to that option's default with a warning, so a typo in
+`config.yaml` won't surface as an error part-way through extraction.
 
 ## Caching
 

@@ -4,10 +4,13 @@ import logging
 from pathlib import Path
 
 import pytest
+import yaml
 
 from nf_docs.config import (
+    _FIELD_TYPES,
     DEFAULT_CONFIG,
     NfDocsConfig,
+    _has_expected_shape,
     get_config_path,
     get_example_config,
     get_xdg_config_home,
@@ -125,6 +128,57 @@ class TestNfDocsConfig:
         assert config.ignore_config_prefixes == DEFAULT_CONFIG["ignore_config_prefixes"]
         assert config.include_hidden_params == DEFAULT_CONFIG["include_hidden_params"]
         assert config.default_format == DEFAULT_CONFIG["default_format"]
+
+    def test_every_option_has_a_declared_type(self) -> None:
+        """
+        DEFAULT_CONFIG and _FIELD_TYPES must describe the same set of options.
+
+        from_dict() looks each option up in both, so an option added to one only
+        turns config loading into a KeyError.
+        """
+        assert set(DEFAULT_CONFIG) == set(_FIELD_TYPES)
+
+    def test_defaults_satisfy_their_own_declared_types(self) -> None:
+        """Each default is a valid value for its option."""
+        for key, default in DEFAULT_CONFIG.items():
+            assert _has_expected_shape(key, default), key
+
+    def test_example_config_is_valid_and_matches_defaults(self) -> None:
+        """
+        The shipped example must parse, and describe the defaults it claims.
+
+        `nf-docs config --init` writes this file verbatim, so a stale value here
+        silently changes behaviour for anyone who runs it.
+        """
+        parsed = yaml.safe_load(get_example_config())
+
+        assert NfDocsConfig.from_dict(parsed) == NfDocsConfig()
+        assert set(parsed) <= set(DEFAULT_CONFIG)
+
+    def test_example_config_suggestions_uncomment_to_valid_yaml(self) -> None:
+        """
+        Uncommenting a suggested value must leave a usable config file.
+
+        A suggestion that uncomments to a bare list is an orphan under whatever
+        precedes it, which makes the whole file unparseable - and a broken file
+        isn't a partial failure. load_config() discards all of it and silently
+        reverts every option to its default.
+        """
+        blocks: list[list[str]] = []
+        for line in get_example_config().splitlines():
+            if line.startswith("#"):
+                if not blocks or blocks[-1] is None:
+                    blocks.append([])
+                blocks[-1].append(line[2:] if line.startswith("# ") else line[1:])
+            elif blocks and blocks[-1] is not None:
+                blocks.append(None)  # type: ignore[arg-type]
+
+        for block in filter(None, blocks):
+            try:
+                uncommented = yaml.safe_load("\n".join(block))
+            except yaml.YAMLError:
+                continue  # Prose, not a suggested setting
+            assert not isinstance(uncommented, list), "\n".join(block)
 
     def test_from_dict_ignores_unknown_keys(self) -> None:
         """A key nf-docs doesn't know about is skipped, not an error."""

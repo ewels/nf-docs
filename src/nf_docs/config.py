@@ -78,6 +78,25 @@ def _has_expected_shape(key: str, value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
 
 
+def _describe_expected(key: str, value: Any) -> str:
+    """
+    Describe what an option wanted and what it got, for a warning message.
+
+    Args:
+        key: Option name, which must be present in ``_FIELD_TYPES``
+        value: The offending value
+
+    Returns:
+        A phrase completing "Config option 'x' should be ...".
+    """
+    if _FIELD_TYPES[key] is not list:
+        return f"{_FIELD_TYPES[key].__name__}, got {type(value).__name__}"
+    if not isinstance(value, list):
+        return f"a list of strings, got {type(value).__name__}"
+    offenders = sorted({type(item).__name__ for item in value if not isinstance(item, str)})
+    return f"a list of strings, but it contains {' and '.join(offenders)}"
+
+
 def get_xdg_config_home() -> Path:
     """Get the XDG config directory."""
     xdg_config = os.environ.get("XDG_CONFIG_HOME")
@@ -108,8 +127,9 @@ class NfDocsConfig:
         default_format: Default output format for the ``nf-docs generate`` command
             when ``-f/--format`` is not given. Only the CLI reads this; the Python
             API takes its format as an argument. Default: "html".
-        max_readme_length: Maximum README content length to include (0 = no limit).
-            Default: 0.
+        max_readme_length: Maximum length of README *source text* to include, in
+            characters (0 = no limit). Local images are embedded as base64 after
+            the cut, so the stored content can be larger than this. Default: 0.
         strip_readme_badges: Whether to strip badge lines (images/links at the top)
             from README files. Default: True.
         exclude_patterns: Extra paths for the Language Server to skip when indexing
@@ -161,9 +181,8 @@ class NfDocsConfig:
                 continue
             if key in data:
                 logger.warning(
-                    f"Config option {key!r} should be "
-                    f"{'a list of strings' if _FIELD_TYPES[key] is list else _FIELD_TYPES[key].__name__}"
-                    f", got {type(data[key]).__name__}. Using the default: {default!r}"
+                    f"Config option {key!r} should be {_describe_expected(key, data[key])}. "
+                    f"Using the default: {default!r}"
                 )
             # Copy, so the caller can't mutate DEFAULT_CONFIG through the result.
             values[key] = list(default) if isinstance(default, list) else default
@@ -284,7 +303,9 @@ include_hidden_params: true
 # Default: html
 default_format: html
 
-# Maximum length of README content to include (in characters).
+# Maximum length of README source text to include, in characters.
+# The cut happens before local images are embedded as base64, so this limits
+# how much of the README is kept, not the size of the stored result.
 # Set to 0 for no limit.
 # Default: 0
 max_readme_length: 0
@@ -300,8 +321,9 @@ strip_readme_badges: true
 # nf-docs always excludes (.git, .nf-test, work) rather than replacing them.
 # Entries are passed through to the language server's `nextflow.files.exclude`
 # setting, so directory names are the safest thing to put here.
-# Default: []
-exclude_patterns: []
-#  - "tests"
-#  - "examples"
+# Uncomment and edit to set some. Default: none.
+#
+# exclude_patterns:
+#   - "tests"
+#   - "examples"
 """
