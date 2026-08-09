@@ -22,6 +22,14 @@
   was introduced, then dropped by an unrelated revert in the same release
 - A parameter excluded by `include_hidden_params` or `ignore_input_prefixes` no longer reappears in
   the Configuration section
+- A config option set to the wrong type falls back to its default with a warning, rather than
+  failing somewhere downstream. `default_format: 3` used to be an uncaught `AttributeError`,
+  `max_readme_length: "lots"` silently dropped the README, and `exclude_patterns: "tests"` sent the
+  language server one exclusion per character
+- `NfDocsConfig.from_dict()` copies its list defaults, so mutating a returned config no longer
+  changes `DEFAULT_CONFIG` for every later caller
+- `default_format` is excluded from the extraction cache key. It only picks the CLI's output format,
+  so changing it no longer evicts every cached pipeline
 - The extraction cache is now keyed on the configuration as well as the pipeline contents.
   Previously a CLI run (which loads `~/.config/nf-docs/config.yaml`) and a library call (which uses
   defaults) shared a cache entry for the same unchanged pipeline and returned each other's results

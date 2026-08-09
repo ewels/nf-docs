@@ -1,5 +1,6 @@
 """Tests for the configuration system."""
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -124,6 +125,71 @@ class TestNfDocsConfig:
         assert config.ignore_config_prefixes == DEFAULT_CONFIG["ignore_config_prefixes"]
         assert config.include_hidden_params == DEFAULT_CONFIG["include_hidden_params"]
         assert config.default_format == DEFAULT_CONFIG["default_format"]
+
+    def test_from_dict_ignores_unknown_keys(self) -> None:
+        """A key nf-docs doesn't know about is skipped, not an error."""
+        config = NfDocsConfig.from_dict({"made_up_option": 1, "default_format": "json"})
+
+        assert config == NfDocsConfig(default_format="json")
+
+    def test_from_dict_copies_list_defaults(self) -> None:
+        """Defaults are copied, so a caller can't mutate DEFAULT_CONFIG through them."""
+        config = NfDocsConfig.from_dict({})
+        config.ignore_config_prefixes.append("mutated.")
+
+        assert DEFAULT_CONFIG["ignore_config_prefixes"] == ["genomes."]
+        assert NfDocsConfig.from_dict({}).ignore_config_prefixes == ["genomes."]
+
+    @pytest.mark.parametrize(
+        ("key", "bad_value"),
+        [
+            # Every one of these used to reach real code and fail there: a bare
+            # string silently iterated as characters, a string where an int was
+            # expected raised TypeError mid-extraction.
+            ("exclude_patterns", "tests"),
+            ("ignore_config_prefixes", "genomes."),
+            ("ignore_input_prefixes", [1, 2]),
+            ("max_readme_length", "lots"),
+            ("max_readme_length", True),
+            ("default_format", 3),
+            ("include_hidden_params", "yes"),
+            ("strip_readme_badges", 1),
+        ],
+    )
+    def test_from_dict_falls_back_on_wrong_type(self, key: str, bad_value: object) -> None:
+        """A value of the wrong type warns and uses the default."""
+        config = NfDocsConfig.from_dict({key: bad_value})
+
+        assert getattr(config, key) == DEFAULT_CONFIG[key]
+
+    def test_from_dict_warns_about_wrong_type(self, caplog) -> None:
+        """The fallback is announced rather than silent."""
+        with caplog.at_level(logging.WARNING):
+            NfDocsConfig.from_dict({"max_readme_length": "lots"})
+
+        assert "max_readme_length" in caplog.text
+
+    def test_cache_key_ignores_default_format(self) -> None:
+        """default_format is CLI-only, so changing it must not evict extractions."""
+        assert (
+            NfDocsConfig(default_format="html").cache_key()
+            == NfDocsConfig(default_format="json").cache_key()
+        )
+
+    def test_cache_key_covers_every_extraction_option(self) -> None:
+        """Any option that shapes extraction changes the key."""
+        baseline = NfDocsConfig().cache_key()
+        variants = [
+            NfDocsConfig(ignore_config_prefixes=[]),
+            NfDocsConfig(ignore_input_prefixes=["x."]),
+            NfDocsConfig(include_hidden_params=False),
+            NfDocsConfig(max_readme_length=500),
+            NfDocsConfig(strip_readme_badges=False),
+            NfDocsConfig(exclude_patterns=["tests"]),
+        ]
+
+        for variant in variants:
+            assert variant.cache_key() != baseline, variant
 
     def test_to_dict(self) -> None:
         """Test to_dict conversion."""

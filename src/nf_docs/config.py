@@ -38,6 +38,45 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "exclude_patterns": [],
 }
 
+# Expected shape of each option, for checking what comes out of the YAML file.
+# ``list`` means "list of strings". Every option is consulted during extraction
+# or by the CLI, so a value of the wrong type reaches real code and fails there
+# rather than here - hence checking at the boundary instead of at each use.
+_FIELD_TYPES: dict[str, type] = {
+    "ignore_config_prefixes": list,
+    "ignore_input_prefixes": list,
+    "include_hidden_params": bool,
+    "default_format": str,
+    "max_readme_length": int,
+    "strip_readme_badges": bool,
+    "exclude_patterns": list,
+}
+
+# Options that don't affect extraction, and so stay out of the cache key.
+_CLI_ONLY_FIELDS = frozenset({"default_format"})
+
+
+def _has_expected_shape(key: str, value: Any) -> bool:
+    """
+    Check a config value against the type its option expects.
+
+    Args:
+        key: Option name, which must be present in ``_FIELD_TYPES``
+        value: Value as parsed from YAML
+
+    Returns:
+        True if the value can be used as-is.
+    """
+    expected = _FIELD_TYPES[key]
+    if expected is bool:
+        return isinstance(value, bool)
+    if expected is int:
+        # bool is a subclass of int, but `max_readme_length: true` is a mistake.
+        return isinstance(value, int) and not isinstance(value, bool)
+    if expected is str:
+        return isinstance(value, str)
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
 
 def get_xdg_config_home() -> Path:
     """Get the XDG config directory."""
@@ -102,38 +141,54 @@ class NfDocsConfig:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "NfDocsConfig":
-        """Create a config from a dictionary, using defaults for missing values."""
-        return cls(
-            ignore_config_prefixes=data.get(
-                "ignore_config_prefixes", DEFAULT_CONFIG["ignore_config_prefixes"]
-            ),
-            ignore_input_prefixes=data.get(
-                "ignore_input_prefixes", DEFAULT_CONFIG["ignore_input_prefixes"]
-            ),
-            include_hidden_params=data.get(
-                "include_hidden_params", DEFAULT_CONFIG["include_hidden_params"]
-            ),
-            default_format=data.get("default_format", DEFAULT_CONFIG["default_format"]),
-            max_readme_length=data.get("max_readme_length", DEFAULT_CONFIG["max_readme_length"]),
-            strip_readme_badges=data.get(
-                "strip_readme_badges", DEFAULT_CONFIG["strip_readme_badges"]
-            ),
-            exclude_patterns=data.get("exclude_patterns", DEFAULT_CONFIG["exclude_patterns"]),
-        )
+        """
+        Create a config from a dictionary, using defaults for missing values.
+
+        A value of the wrong type falls back to the default with a warning, so a
+        typo in ``config.yaml`` can't surface as a traceback from the middle of
+        extraction. Unknown keys are ignored.
+
+        Args:
+            data: Parsed contents of a config file
+
+        Returns:
+            The configuration to use.
+        """
+        values: dict[str, Any] = {}
+        for key, default in DEFAULT_CONFIG.items():
+            if key in data and _has_expected_shape(key, data[key]):
+                values[key] = data[key]
+                continue
+            if key in data:
+                logger.warning(
+                    f"Config option {key!r} should be "
+                    f"{'a list of strings' if _FIELD_TYPES[key] is list else _FIELD_TYPES[key].__name__}"
+                    f", got {type(data[key]).__name__}. Using the default: {default!r}"
+                )
+            # Copy, so the caller can't mutate DEFAULT_CONFIG through the result.
+            values[key] = list(default) if isinstance(default, list) else default
+        return cls(**values)
 
     def cache_key(self) -> str:
         """
-        Stable short hash of this configuration.
+        Stable short hash of the options that shape extraction.
 
         Extraction results depend on the config in use, so the cache key has to
         include it. Without this, a CLI run (which loads the user's config file)
         and a library call (which uses defaults) would share a cache entry on
         the same unchanged pipeline and return each other's results.
 
+        ``default_format`` is left out: it only picks the CLI's output format,
+        so including it would evict every cached extraction - each one a full
+        Language Server run - to change a presentation default.
+
         Returns:
             A hex digest suitable for use in a cache filename.
         """
-        payload = json.dumps(self.to_dict(), sort_keys=True)
+        extraction_options = {
+            key: value for key, value in self.to_dict().items() if key not in _CLI_ONLY_FIELDS
+        }
+        payload = json.dumps(extraction_options, sort_keys=True)
         return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
     def to_dict(self) -> dict[str, Any]:
