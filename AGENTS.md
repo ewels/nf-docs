@@ -231,12 +231,11 @@ src/nf_docs/
   `~/.config/nf-docs/config.yaml` and passes it to `PipelineExtractor(config=...)`; `api.py` uses
   `NfDocsConfig()` defaults so library calls are reproducible. There is deliberately no global
   config accessor — inject an `NfDocsConfig` instead of reintroducing ambient state.
-- **Lazy exports**: `__init__.py` eagerly imports only `models`; everything else in `__all__` is
-  resolved on first access via PEP 562 `__getattr__`. This keeps `import nf_docs` at ~90 ms instead
-  of ~260 ms for callers that only want the models. Add new public names to both `_LAZY_EXPORTS` and
-  the `TYPE_CHECKING` block so type checkers and IDEs still see them.
 - **Public API**: everything in `nf_docs.__all__` plus `nf_docs.models`. Adding to it is a
-  commitment — update `docs/python-api.md` and `tests/test_api.py` alongside.
+  commitment — update `docs/python-api.md` and `tests/test_api.py` alongside. `__init__.py`
+  re-exports eagerly, which costs ~170 ms on `import nf_docs` (it pulls in jinja2, httpx and
+  friends). That's deliberate: a plain import list is worth more than the startup time for a tool
+  that spends seconds waiting on the Language Server. Don't make it lazy.
 - **Pre-commit hook entry**: `.pre-commit-hooks.yaml` exposes the CLI as the `nf-docs` hook with
   default `args: [., --format, html]`, triggered by changes to `.nf`, `nextflow.config`,
   `nextflow_schema.json`, `meta.yml`, or README files. Guarded by `tests/test_pre_commit_hooks.py`.
