@@ -1,12 +1,16 @@
 """Tests for the configuration system."""
 
+import logging
+from itertools import groupby
 from pathlib import Path
 
 import pytest
+import yaml
 
 from nf_docs.config import (
     DEFAULT_CONFIG,
     NfDocsConfig,
+    _is_valid,
     get_config_path,
     get_example_config,
     get_xdg_config_home,
@@ -49,7 +53,7 @@ class TestNfDocsConfig:
         config = NfDocsConfig()
         assert config.ignore_config_prefixes == ["genomes."]
         assert config.ignore_input_prefixes == []
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
         assert config.default_format == "html"
         assert config.max_readme_length == 0
         assert config.strip_readme_badges is True
@@ -86,7 +90,7 @@ class TestNfDocsConfig:
         data = {
             "ignore_config_prefixes": ["custom."],
             "ignore_input_prefixes": ["private."],
-            "include_hidden_params": True,
+            "include_hidden_params": False,
             "default_format": "json",
             "max_readme_length": 5000,
             "strip_readme_badges": False,
@@ -96,7 +100,7 @@ class TestNfDocsConfig:
 
         assert config.ignore_config_prefixes == ["custom."]
         assert config.ignore_input_prefixes == ["private."]
-        assert config.include_hidden_params is True
+        assert config.include_hidden_params is False
         assert config.default_format == "json"
         assert config.max_readme_length == 5000
         assert config.strip_readme_badges is False
@@ -105,13 +109,13 @@ class TestNfDocsConfig:
     def test_from_dict_partial(self) -> None:
         """Test from_dict with only some values specified."""
         data = {
-            "include_hidden_params": True,
+            "include_hidden_params": False,
             "default_format": "yaml",
         }
         config = NfDocsConfig.from_dict(data)
 
         # Specified values
-        assert config.include_hidden_params is True
+        assert config.include_hidden_params is False
         assert config.default_format == "yaml"
 
         # Default values
@@ -125,17 +129,81 @@ class TestNfDocsConfig:
         assert config.include_hidden_params == DEFAULT_CONFIG["include_hidden_params"]
         assert config.default_format == DEFAULT_CONFIG["default_format"]
 
+    def test_defaults_are_themselves_valid(self) -> None:
+        """Each default passes the check applied to a user's value."""
+        for key, default in DEFAULT_CONFIG.items():
+            assert _is_valid(key, default), key
+
+    def test_from_dict_ignores_unknown_keys(self) -> None:
+        """A key nf-docs doesn't know about is skipped, not an error."""
+        config = NfDocsConfig.from_dict({"made_up_option": 1, "default_format": "json"})
+
+        assert config == NfDocsConfig(default_format="json")
+
+    def test_from_dict_copies_list_defaults(self) -> None:
+        """Defaults are copied, so a caller can't mutate DEFAULT_CONFIG through them."""
+        config = NfDocsConfig.from_dict({})
+        config.ignore_config_prefixes.append("mutated.")
+
+        assert NfDocsConfig.from_dict({}).ignore_config_prefixes == ["genomes."]
+
+    @pytest.mark.parametrize(
+        ("key", "bad_value"),
+        [
+            # Every one of these used to reach real code and fail there: a bare
+            # string silently iterated as characters, a string where an int was
+            # expected raised TypeError mid-extraction.
+            ("exclude_patterns", "tests"),
+            ("ignore_config_prefixes", "genomes."),
+            ("ignore_input_prefixes", [1, 2]),
+            ("max_readme_length", "lots"),
+            ("max_readme_length", True),
+            ("default_format", 3),
+            ("include_hidden_params", "yes"),
+            ("strip_readme_badges", 1),
+        ],
+    )
+    def test_from_dict_falls_back_on_bad_value(self, key: str, bad_value: object, caplog) -> None:
+        """A value nf-docs can't use warns and falls back to the default."""
+        with caplog.at_level(logging.WARNING):
+            config = NfDocsConfig.from_dict({key: bad_value})
+
+        assert getattr(config, key) == DEFAULT_CONFIG[key]
+        assert key in caplog.text
+
+    def test_cache_key_ignores_default_format(self) -> None:
+        """default_format is CLI-only, so changing it must not evict extractions."""
+        assert (
+            NfDocsConfig(default_format="html").cache_key()
+            == NfDocsConfig(default_format="json").cache_key()
+        )
+
+    def test_cache_key_covers_every_extraction_option(self) -> None:
+        """Any option that shapes extraction changes the key."""
+        baseline = NfDocsConfig().cache_key()
+        variants = [
+            NfDocsConfig(ignore_config_prefixes=[]),
+            NfDocsConfig(ignore_input_prefixes=["x."]),
+            NfDocsConfig(include_hidden_params=False),
+            NfDocsConfig(max_readme_length=500),
+            NfDocsConfig(strip_readme_badges=False),
+            NfDocsConfig(exclude_patterns=["tests"]),
+        ]
+
+        for variant in variants:
+            assert variant.cache_key() != baseline, variant
+
     def test_to_dict(self) -> None:
         """Test to_dict conversion."""
         config = NfDocsConfig(
             ignore_config_prefixes=["foo."],
-            include_hidden_params=True,
+            include_hidden_params=False,
             default_format="markdown",
         )
         result = config.to_dict()
 
         assert result["ignore_config_prefixes"] == ["foo."]
-        assert result["include_hidden_params"] is True
+        assert result["include_hidden_params"] is False
         assert result["default_format"] == "markdown"
         assert "ignore_input_prefixes" in result
         assert "max_readme_length" in result
@@ -151,7 +219,7 @@ class TestLoadConfig:
         config = load_config(tmp_path / "nonexistent" / "config.yaml")
 
         assert config.ignore_config_prefixes == ["genomes."]
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
 
     @pytest.mark.parametrize(
         "contents",
@@ -175,7 +243,7 @@ class TestLoadConfig:
 ignore_config_prefixes:
   - "custom."
   - "other."
-include_hidden_params: true
+include_hidden_params: false
 default_format: json
 """
         )
@@ -183,7 +251,7 @@ default_format: json
         config = load_config(config_file)
 
         assert config.ignore_config_prefixes == ["custom.", "other."]
-        assert config.include_hidden_params is True
+        assert config.include_hidden_params is False
         assert config.default_format == "json"
         # Non-specified values should use defaults
         assert config.strip_readme_badges is True
@@ -197,7 +265,7 @@ default_format: json
 
         # Should use all defaults
         assert config.ignore_config_prefixes == ["genomes."]
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
 
     def test_load_invalid_yaml(self, tmp_path: Path) -> None:
         """Test that invalid YAML returns defaults with warning."""
@@ -208,7 +276,7 @@ default_format: json
 
         # Should use defaults on error
         assert config.ignore_config_prefixes == ["genomes."]
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
 
 
 class TestGetExampleConfig:
@@ -216,8 +284,6 @@ class TestGetExampleConfig:
 
     def test_returns_valid_yaml(self) -> None:
         """Test that example config is valid YAML."""
-        import yaml
-
         example = get_example_config()
         data = yaml.safe_load(example)
 
@@ -225,6 +291,33 @@ class TestGetExampleConfig:
         assert "ignore_config_prefixes" in data
         assert "include_hidden_params" in data
         assert "default_format" in data
+
+    def test_describes_the_actual_defaults(self) -> None:
+        """
+        `nf-docs config --init` writes this file verbatim, so a value that has
+        drifted from the code silently changes behaviour for anyone who runs it.
+        """
+        assert NfDocsConfig.from_dict(yaml.safe_load(get_example_config())) == NfDocsConfig()
+
+    def test_example_config_suggestions_uncomment_to_valid_yaml(self) -> None:
+        """
+        Uncommenting a suggested value must leave a usable config file.
+
+        A suggestion that uncomments to a bare list is an orphan under whatever
+        precedes it, which makes the whole file unparseable - and a broken file
+        isn't a partial failure. load_config() discards all of it and silently
+        reverts every option to its default.
+        """
+        lines = get_example_config().splitlines()
+        for is_comment, group in groupby(lines, lambda line: line.startswith("#")):
+            if not is_comment:
+                continue
+            block = "\n".join(line.removeprefix("#").removeprefix(" ") for line in group)
+            try:
+                uncommented = yaml.safe_load(block)
+            except yaml.YAMLError:
+                continue  # Prose, not a suggested setting
+            assert not isinstance(uncommented, list), block
 
     def test_contains_comments(self) -> None:
         """Test that example config contains helpful comments."""

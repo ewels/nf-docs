@@ -15,7 +15,13 @@ from nf_docs.models import (
     ProcessOutput,
     Workflow,
 )
+from nf_docs.output import (
+    FORMAT_ALIASES,
+    SINGLE_FILE_OUTPUT_POLICY,
+    supported_formats,
+)
 from nf_docs.renderers import (
+    RENDERERS,
     HTMLRenderer,
     JSONRenderer,
     MarkdownRenderer,
@@ -753,3 +759,19 @@ class TestTemplateRendering:
         assert "## Inputs" in content
         assert "## Processes" in content
         assert "Footer." in content
+
+
+class TestFormatRegistryConsistency:
+    def test_renderers_and_output_policy_cover_the_same_formats(self):
+        """
+        Every renderable format needs an output policy, and vice versa.
+
+        `output.py` is a leaf module, so `config.py` validates a config file's
+        default_format against SINGLE_FILE_OUTPUT_POLICY rather than importing
+        the renderers. That is only sound while the two agree.
+        """
+        assert set(RENDERERS) == set(SINGLE_FILE_OUTPUT_POLICY)
+
+    def test_supported_formats_covers_every_renderer_and_alias(self):
+        """The name list offered to users matches what get_renderer() accepts."""
+        assert set(supported_formats()) == {*RENDERERS, *FORMAT_ALIASES}

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import rich_click as click
+import yaml
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import (
@@ -23,7 +24,7 @@ from rich.progress import (
 
 from nf_docs import __version__
 from nf_docs.api import extract as extract_pipeline
-from nf_docs.config import load_config
+from nf_docs.config import get_config_path, get_example_config, load_config
 from nf_docs.extractor import ExtractionError, PipelineExtractor
 from nf_docs.lsp_client import LSPError
 from nf_docs.output import (
@@ -34,6 +35,7 @@ from nf_docs.output import (
     resolve_single_file_path,
     resolve_source,
     streams_by_default,
+    supported_formats,
 )
 from nf_docs.progress import ProgressUpdate
 from nf_docs.renderers import get_renderer
@@ -183,9 +185,12 @@ def _display_path(path: Path) -> str:
     "--format",
     "-f",
     "output_format",
-    type=click.Choice(["json", "yaml", "markdown", "md", "html", "table"], case_sensitive=False),
-    default="html",
-    help="Output format: json, yaml, markdown (or md), html, table (default: html)",
+    type=click.Choice(supported_formats(), case_sensitive=False),
+    default=None,
+    help=(
+        f"Output format: {', '.join(supported_formats())} "
+        "(default: the config file's default_format, otherwise html)"
+    ),
 )
 @click.option(
     "--output",
@@ -253,7 +258,13 @@ def generate(
     """
     setup_logging(verbose)
 
-    output_format = normalize_format(output_format)
+    # The CLI honours the user's ~/.config/nf-docs/config.yaml; the Python API
+    # deliberately does not (see nf_docs.api.extract).
+    user_config = load_config()
+
+    # An explicit --format wins; otherwise the config file's default_format,
+    # which load_config() has already checked is a format we can render.
+    output_format = normalize_format(output_format or user_config.default_format)
 
     # Decide single-file vs directory mode up front. A directory holding only a
     # module-style main.nf is auto-detected as a single module.
@@ -265,10 +276,6 @@ def generate(
 
     if single_file_mode:
         logging.getLogger("nf_docs").info("Generating single module documentation")
-
-    # The CLI honours the user's ~/.config/nf-docs/config.yaml; the Python API
-    # deliberately does not (see nf_docs.api.extract).
-    user_config = load_config()
 
     try:
         with ExtractionProgressDisplay(console) as progress_display:
@@ -584,6 +591,88 @@ def clear_cache(clear_all: bool, pipeline_path: Path | None) -> None:
     else:
         console.print("[red]Please specify a pipeline path or use --all[/red]")
         raise SystemExit(1)
+
+
+@main.command()
+@click.option(
+    "--init",
+    "init_config",
+    is_flag=True,
+    help="Create an example config file at the default location",
+)
+@click.option(
+    "--show-example",
+    is_flag=True,
+    help="Print an example config file to stdout",
+)
+@click.option(
+    "--path",
+    is_flag=True,
+    help="Print the config file path",
+)
+def config(init_config: bool, show_example: bool, path: bool) -> None:
+    """
+    Show or manage nf-docs configuration.
+
+    Without options, shows the current configuration values.
+
+    Examples:
+
+        # Show current config
+        nf-docs config
+
+        # Show config file path
+        nf-docs config --path
+
+        # Print example config
+        nf-docs config --show-example
+
+        # Create config file with defaults
+        nf-docs config --init
+    """
+    # Route load_config()'s warnings through the console, so a broken config
+    # file says so here rather than reaching stderr unformatted.
+    setup_logging(verbose=False)
+    config_path = get_config_path()
+
+    if path:
+        # click.echo, not console.print: rich hard-wraps at the terminal width,
+        # which would split a long path across lines in `$(nf-docs config --path)`.
+        click.echo(str(config_path))
+        return
+
+    if show_example:
+        click.echo(get_example_config())
+        return
+
+    if init_config:
+        if config_path.exists():
+            console.print(f"[yellow]Config file already exists at {config_path}[/yellow]")
+            console.print("Edit it directly or delete it first to recreate.")
+            return
+
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(get_example_config(), encoding="utf-8")
+        console.print(f"[green]Created config file at {config_path}[/green]")
+        return
+
+    # Default: show current config
+    console.print(f"[bold]Config file:[/bold] {config_path}")
+    if config_path.exists():
+        console.print("[dim]  (file exists)[/dim]")
+    else:
+        console.print("[dim]  (using defaults - file does not exist)[/dim]")
+
+    # Load before printing the header: a file that fails to parse warns here,
+    # so "settings in effect" isn't read as "contents of that file".
+    settings = load_config().to_dict()
+
+    console.print()
+    console.print("[bold]Settings in effect:[/bold]")
+
+    # Dump as YAML so what's printed is exactly what you'd write in the file.
+    # click.echo rather than console.print, so rich doesn't read "[]" as markup.
+    click.echo(yaml.safe_dump(settings, sort_keys=False))
 
 
 if __name__ == "__main__":

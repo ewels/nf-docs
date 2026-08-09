@@ -219,9 +219,10 @@ src/nf_docs/
   `render_to_directory()`. Factory function `get_renderer(format)` returns the appropriate renderer.
   HTML uses a single Jinja2 template with inline CSS (Tailwind) and JavaScript for search. Adding a
   new output format means updating `RENDERERS` in `renderers/__init__.py`,
-  `SINGLE_FILE_OUTPUT_POLICY` and (if it writes a directory) `DIRECTORY_FORMATS` in `output.py`, the
-  CLI's `--format` choices, and tests. Format aliases live only in `output.FORMAT_ALIASES`;
-  `get_renderer()` resolves through `normalize_format()` so there is one alias table.
+  `SINGLE_FILE_OUTPUT_POLICY` and (if it writes a directory) `DIRECTORY_FORMATS` in `output.py`, and
+  tests. The CLI's `--format` choices come from `output.supported_formats()`, so they follow
+  automatically. Format aliases live only in `output.FORMAT_ALIASES`; `get_renderer()` resolves
+  through `normalize_format()` so there is one alias table.
 - **Config parsing**: `config_parser.py` shells out to `nextflow config -flat`. `nextflow_env.py`
   sets an isolated `NXF_HOME` so this doesn't pollute the user's Nextflow state.
 - **Two entry points**: `cli.py` (rich-click) and `api.py` (library). All source/output path and

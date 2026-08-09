@@ -14,7 +14,8 @@ def isolate_xdg_dirs(tmp_path_factory, monkeypatch) -> None:
     Without this, any test that extracts with caching left entries in the
     developer's real ``~/.cache/nf-docs/`` - and because the Language Server is
     mocked out in tests, those entries are empty results that a later real run
-    could pick up.
+    could pick up. It also keeps anything reaching ``load_config()`` independent
+    of whether the person running the suite has a real config file.
     """
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path_factory.mktemp("xdg_cache")))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg_config")))

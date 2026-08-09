@@ -10,9 +10,26 @@
 - `PipelineExtractor` accepts a `config=` argument, so callers can supply an `NfDocsConfig` instead
   of relying on the global instance
 - New "Python API" documentation page
+- Every `NfDocsConfig` option now takes effect. `ignore_input_prefixes`, `include_hidden_params`,
+  `max_readme_length` and `exclude_patterns` were documented but never consulted; `default_format`
+  was ignored in favour of a hardcoded `html`
+- Restored the `nf-docs config` command (`--path`, `--show-example`, `--init`), which had been
+  removed by accident along with the config wiring
 
 ### Fixed
 
+- `strip_readme_badges` is consulted again when parsing a README. It was wired up when the option
+  was introduced, then dropped by an unrelated revert in the same release
+- A parameter excluded by `include_hidden_params` or `ignore_input_prefixes` no longer reappears in
+  the Configuration section
+- A config option set to the wrong type falls back to its default with a warning, rather than
+  failing somewhere downstream. `default_format: 3` used to be an uncaught `AttributeError`,
+  `max_readme_length: "lots"` silently dropped the README, and `exclude_patterns: "tests"` sent the
+  language server one exclusion per character
+- `NfDocsConfig.from_dict()` copies its list defaults, so mutating a returned config no longer
+  changes `DEFAULT_CONFIG` for every later caller
+- `default_format` is excluded from the extraction cache key. It only picks the CLI's output format,
+  so changing it no longer evicts every cached pipeline
 - The extraction cache is now keyed on the configuration as well as the pipeline contents.
   Previously a CLI run (which loads `~/.config/nf-docs/config.yaml`) and a library call (which uses
   defaults) shared a cache entry for the same unchanged pipeline and returned each other's results
@@ -23,6 +40,22 @@
 
 ### Changed
 
+- `include_hidden_params` now defaults to `true`, matching the behaviour nf-docs has always had of
+  showing hidden schema parameters. Set it to `false` to leave them out
+
+### Upgrading
+
+Six config options previously had no effect. If you already have a
+`~/.config/nf-docs/config.yaml`, its settings now apply for the first time, and your output may
+change:
+
+- `include_hidden_params: false` — parameters marked `hidden` in `nextflow_schema.json` disappear
+  from the documentation. This is the option doing what it says, but it is a visible change; delete
+  the line (or set `true`) to keep the previous output
+- `ignore_input_prefixes`, `max_readme_length`, `exclude_patterns` — likewise now honoured
+- `default_format` — `nf-docs generate` without `-f` uses it instead of always producing HTML
+
+Run `nf-docs config` to see the settings currently in effect.
 - Output path policy (format aliases, single-module detection, default filenames) moved from
   `cli.py` into a new `nf_docs.output` module so the CLI and the Python API share one implementation
 - Library callers now get `NfDocsConfig()` defaults rather than the user's

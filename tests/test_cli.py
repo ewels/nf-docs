@@ -1,12 +1,14 @@
 """Tests for the CLI interface."""
 
+import logging
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
 
-from nf_docs.cli import generate, inspect, main
+from nf_docs.cli import config, generate, inspect, main
+from nf_docs.config import get_config_path
 from nf_docs.extractor import PipelineExtractor
 
 
@@ -14,6 +16,14 @@ from nf_docs.extractor import PipelineExtractor
 def runner():
     """Create a CLI runner."""
     return CliRunner()
+
+
+def write_user_config(body: str) -> Path:
+    """Write a config file at the (isolated) XDG config path and return its path."""
+    config_file = get_config_path()
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(body, encoding="utf-8")
+    return config_file
 
 
 class TestMainCommand:
@@ -265,3 +275,107 @@ class TestInspectCommand:
         with patch.object(PipelineExtractor, "_extract_from_lsp"):
             result = runner.invoke(inspect, [str(sample_pipeline), "--verbose"])
         assert result.exit_code == 0
+
+
+class TestDefaultFormatConfig:
+    """
+    The config file's default_format is what `generate` uses without -f.
+
+    ``isolate_xdg_dirs`` (conftest) points XDG_CONFIG_HOME at a scratch
+    directory, so these write a real config file and exercise ``load_config()``.
+    """
+
+    def test_default_format_from_config_is_used(self, runner: CliRunner, sample_pipeline: Path):
+        """With no -f, the configured format wins over the built-in html."""
+        write_user_config("default_format: json\n")
+
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            result = runner.invoke(generate, [str(sample_pipeline)])
+
+        assert result.exit_code == 0
+        assert '"pipeline"' in result.output
+
+    def test_explicit_format_flag_wins(self, runner: CliRunner, sample_pipeline: Path):
+        """An explicit -f overrides the configured default."""
+        write_user_config("default_format: json\n")
+
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            result = runner.invoke(generate, [str(sample_pipeline), "--format", "yaml"])
+
+        assert result.exit_code == 0
+        assert "pipeline:" in result.output
+
+    def test_no_config_file_still_defaults_to_html(
+        self, runner: CliRunner, sample_pipeline: Path, tmp_path: Path
+    ):
+        """Without a config file the default is unchanged."""
+        output = tmp_path / "site"
+
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            result = runner.invoke(generate, [str(sample_pipeline), "-o", str(output)])
+
+        assert result.exit_code == 0
+        assert (output / "index.html").exists()
+
+    def test_unknown_default_format_warns_and_falls_back(
+        self, runner: CliRunner, sample_pipeline: Path, tmp_path: Path, caplog
+    ):
+        """A bad config value is a warning and html, not a traceback."""
+        write_user_config("default_format: nonsense\n")
+        output = tmp_path / "site"
+
+        with caplog.at_level(logging.WARNING), patch.object(PipelineExtractor, "_extract_from_lsp"):
+            result = runner.invoke(generate, [str(sample_pipeline), "-o", str(output)])
+
+        assert result.exit_code == 0
+        assert "nonsense" in caplog.text
+        assert (output / "index.html").exists()
+
+    def test_config_command_reports_the_format_actually_used(self, runner: CliRunner):
+        """
+        `nf-docs config` must not report a value `generate` would reject.
+
+        Validating default_format at load time rather than in the CLI is what
+        keeps these two commands agreeing.
+        """
+        write_user_config("default_format: nonsense\n")
+
+        result = runner.invoke(config, [])
+
+        assert result.exit_code == 0
+        assert "default_format: html" in result.output
+        assert "nonsense" not in result.output
+
+
+class TestConfigCommand:
+    def test_shows_current_settings(self, runner: CliRunner):
+        result = runner.invoke(config, [])
+        assert result.exit_code == 0
+        assert "ignore_config_prefixes" in result.output
+
+    def test_path(self, runner: CliRunner):
+        result = runner.invoke(config, ["--path"])
+        assert result.exit_code == 0
+        assert "config.yaml" in result.output
+
+    def test_show_example(self, runner: CliRunner):
+        result = runner.invoke(config, ["--show-example"])
+        assert result.exit_code == 0
+        assert "ignore_config_prefixes:" in result.output
+
+    def test_init_creates_file(self, runner: CliRunner):
+        result = runner.invoke(config, ["--init"])
+        assert result.exit_code == 0
+
+        created = get_config_path()
+        assert created.exists()
+        assert "ignore_config_prefixes:" in created.read_text()
+
+    def test_init_does_not_overwrite(self, runner: CliRunner):
+        existing = write_user_config("default_format: json\n")
+
+        result = runner.invoke(config, ["--init"])
+
+        assert result.exit_code == 0
+        assert "already exists" in result.output
+        assert existing.read_text() == "default_format: json\n"

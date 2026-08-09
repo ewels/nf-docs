@@ -11,7 +11,7 @@ standalone module or subworkflow — see [Document a single module](#document-a-
 
 | Option              | Description                                                          |
 | ------------------- | -------------------------------------------------------------------- |
-| `--format`, `-f`    | Output format: `html` (default), `markdown`, `table`, `json`, `yaml` |
+| `--format`, `-f`    | Output format: `markdown`, `table`, `json`, `yaml`, `html` (default) |
 | `--output`, `-o`    | Output file or directory (default: `docs/`)                          |
 | `--title`, `-t`     | Custom title                                                         |
 | `--no-cache`        | Force fresh extraction                                               |
@@ -111,15 +111,41 @@ nf-docs clear-cache /path/to/pipeline
 
 # Clear the entire extraction cache
 nf-docs clear-cache --all
+
+# Show configuration, its file path, or create a starter config file
+nf-docs config
+nf-docs config --path
+nf-docs config --init
 ```
+
+## Configuration file
+
+nf-docs reads an optional config file at `~/.config/nf-docs/config.yaml` (respects
+`$XDG_CONFIG_HOME`). It works without one. `nf-docs config --init` writes a commented starter file,
+and `nf-docs config` shows the settings currently in effect.
+
+| Option                   | Default        | Effect                                                                              |
+| ------------------------ | -------------- | ----------------------------------------------------------------------------------- |
+| `ignore_config_prefixes` | `["genomes."]` | Drop matching parameters from the Configuration section                             |
+| `ignore_input_prefixes`  | `[]`           | Drop matching parameters from the Parameters section                                |
+| `include_hidden_params`  | `true`         | Set `false` to leave out parameters marked `hidden` in `nextflow_schema.json`       |
+| `max_readme_length`      | `0`            | Trim README source text to this many characters, on a line boundary. `0` = no limit |
+| `strip_readme_badges`    | `true`         | Set `false` to keep the badge lines below a README's title                          |
+| `exclude_patterns`       | `[]`           | Extra paths the Language Server skips when indexing, added to the built-in ones     |
+| `default_format`         | `html`         | Format `nf-docs generate` uses when `-f/--format` isn't given                       |
+
+An option set to the wrong type falls back to its default with a warning. These settings apply to
+the CLI; the [Python API](python-api.md#configuration) uses defaults unless you pass a config
+explicitly.
 
 ## Caching
 
 nf-docs caches extraction results to avoid re-running the Language Server on every invocation.
 Cached data is stored in `~/.cache/nf-docs/` (respects `$XDG_CACHE_HOME`).
 
-The cache is keyed by pipeline path, a SHA-256 hash of all pipeline source files, and the nf-docs
-version, so it is automatically invalidated whenever files change or nf-docs is upgraded.
+The cache is keyed by pipeline path, a SHA-256 hash of all pipeline source files, the nf-docs
+version, and the configuration options that affect extraction — so it is automatically invalidated
+whenever files change, nf-docs is upgraded, or you edit a setting that changes the output.
 
 Use `--no-cache` to skip the cache for a single run, or `nf-docs clear-cache` to remove entries
 manually.

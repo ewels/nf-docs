@@ -206,9 +206,14 @@ config = nf_docs.NfDocsConfig(ignore_config_prefixes=["genomes.", "test."])
 nf_docs.extract("./my_pipeline", config=config)
 ```
 
-`ignore_config_prefixes` drops matching parameters from the Configuration section, and defaults to
-`["genomes."]` for nf-core pipelines. The other `NfDocsConfig` fields exist but aren't yet wired
-into extraction, so don't rely on them.
+The fields, their defaults and what each one does are listed under
+[Configuration file](running.md#configuration-file). Two things specific to the API:
+
+- `default_format` is read only by `nf-docs generate`. Setting it on a config you pass to
+  `extract()` or `generate()` does nothing — the API takes its format as an argument.
+- Passing a config that isn't an `NfDocsConfig` (say, a plain dict) isn't supported. Build one with
+  `NfDocsConfig(...)`, or `NfDocsConfig.from_dict(...)` if you have a mapping and want the same
+  wrong-type checking `load_config()` applies.
 
 ## Caching
 
