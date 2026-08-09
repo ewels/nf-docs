@@ -2330,7 +2330,9 @@
                 >nf-docs</a
               >
               <span class="nf-docs-version">v{{ generation_info.nf_docs_version }}</span>
+              {% if generation_timestamp %}
               <span>on {{ generation_timestamp }}</span>
+              {% endif %}
             </div>
           </div>
         </footer>

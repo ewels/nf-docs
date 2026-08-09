@@ -1,9 +1,36 @@
 """Pytest configuration and fixtures."""
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+
+
+class AdvancingClock:
+    """
+    A ``datetime`` stand-in whose ``now()`` moves a second forward every call.
+
+    The suite finishes inside a single wall-clock second, so two renders of the
+    same pipeline compare equal whatever ``include_generation_info`` does. This
+    makes every generation timestamp differ from the last, so the
+    reproducibility tests measure the flag rather than the clock.
+    """
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def now(self, tz=None) -> datetime:
+        self.calls += 1
+        return datetime(2024, 1, 1, 12, 0, 0, tzinfo=tz) + timedelta(seconds=self.calls)
+
+
+@pytest.fixture
+def advancing_clock(monkeypatch) -> AdvancingClock:
+    """Make every generation timestamp differ from the last one."""
+    clock = AdvancingClock()
+    monkeypatch.setattr("nf_docs.generation_info.datetime", clock)
+    return clock
 
 
 @pytest.fixture(autouse=True)

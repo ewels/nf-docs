@@ -11,7 +11,6 @@ with optional ``{{ section }}`` template tags for selective rendering.
 import re
 from pathlib import Path
 
-from nf_docs.generation_info import get_markdown_footer
 from nf_docs.models import Pipeline, PipelineInput, Process, Workflow
 from nf_docs.renderers.base import BaseRenderer
 
@@ -120,8 +119,26 @@ class TableRenderer(BaseRenderer):
             sections.append(self._render_functions(pipeline))
 
         content = "\n\n".join(sections)
-        content += "\n\n" + get_markdown_footer()
+        content += self._markdown_footer()
         return content
+
+    def render_pages(self, pipeline: Pipeline) -> dict[str, str]:
+        """
+        Render the standalone ``README.md``, wrapped in the doc markers.
+
+        This is what :meth:`render_to_directory` writes when the target
+        directory has no ``README.md`` yet. When one already exists with
+        markers, that method injects into it instead - a result that depends on
+        the file already on disk, and so cannot be expressed here.
+
+        Args:
+            pipeline: The Pipeline model to render.
+
+        Returns:
+            Mapping with one entry: ``README.md`` and its content.
+        """
+        content = self.render(pipeline)
+        return {"README.md": f"{BEGIN_MARKER}\n{content}\n{END_MARKER}\n"}
 
     def render_from_template(self, pipeline: Pipeline, template: str) -> str:
         """
@@ -172,7 +189,7 @@ class TableRenderer(BaseRenderer):
         content = _TAG_PATTERN.sub(_replace_tag, template)
         # Collapse runs of 3+ blank lines into 2
         content = re.sub(r"\n{3,}", "\n\n", content).strip()
-        content += "\n\n" + get_markdown_footer()
+        content += self._markdown_footer()
         return content
 
     def render_to_directory(self, pipeline: Pipeline, output_dir: str | Path) -> list[Path]:
@@ -180,7 +197,8 @@ class TableRenderer(BaseRenderer):
         If the README.md already exists and contains ``<!-- BEGIN_NF_DOCS -->`` /
         ``<!-- END_NF_DOCS -->`` markers, the generated content is injected between
         them.  When the markers contain ``{{ section }}`` template tags, only the
-        requested sections are rendered.
+        requested sections are rendered.  See :meth:`render_pages` for why this
+        renderer keeps its own implementation.
         Args:
             pipeline: The Pipeline model to render.
             output_dir: Target directory (created if absent).
@@ -204,11 +222,8 @@ class TableRenderer(BaseRenderer):
             if injected is not None:
                 out_file.write_text(injected, encoding="utf-8")
                 return [out_file]
-        # No existing file or no markers — write with markers
-        content = self.render(pipeline)
-        wrapped = f"{BEGIN_MARKER}\n{content}\n{END_MARKER}\n"
-        out_file.write_text(wrapped, encoding="utf-8")
-        return [out_file]
+        # No existing file or no markers — write the standalone, marker-wrapped form
+        return super().render_to_directory(pipeline, output_path)
 
     # ------------------------------------------------------------------
     # Header

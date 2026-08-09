@@ -6,7 +6,10 @@ from pathlib import Path
 import pytest
 import yaml
 
+import nf_docs
 from nf_docs.models import (
+    ConfigParam,
+    Function,
     Pipeline,
     PipelineInput,
     PipelineMetadata,
@@ -22,6 +25,7 @@ from nf_docs.output import (
 )
 from nf_docs.renderers import (
     RENDERERS,
+    BaseRenderer,
     HTMLRenderer,
     JSONRenderer,
     MarkdownRenderer,
@@ -775,3 +779,232 @@ class TestFormatRegistryConsistency:
     def test_supported_formats_covers_every_renderer_and_alias(self):
         """The name list offered to users matches what get_renderer() accepts."""
         assert set(supported_formats()) == {*RENDERERS, *FORMAT_ALIASES}
+
+
+def _renderer(output_format: str, **kwargs) -> BaseRenderer:
+    """Build a renderer, keeping HTML off the Tailwind build for test speed."""
+    if output_format == "html":
+        kwargs.setdefault("use_tailwind", False)
+    return RENDERERS[output_format](**kwargs)
+
+
+class TestRenderPages:
+    """Tests for render_pages(), the in-memory form of render_to_directory()."""
+
+    def test_markdown_returns_a_page_per_file(self, sample_pipeline: Pipeline):
+        pages = MarkdownRenderer().render_pages(sample_pipeline)
+
+        # The sample pipeline has no config params and no functions, so those
+        # two pages are absent - the key set depends on the pipeline.
+        assert set(pages) == {"index.md", "inputs.md", "workflows.md", "processes.md"}
+        assert pages["index.md"].startswith("# test-pipeline")
+        assert "PROCESS_A" in pages["processes.md"]
+
+    def test_markdown_omits_pages_with_no_content(self):
+        pages = MarkdownRenderer().render_pages(Pipeline())
+
+        assert set(pages) == {"index.md", "inputs.md"}
+
+    def test_markdown_includes_optional_pages_when_populated(self, sample_pipeline: Pipeline):
+        sample_pipeline.config_params = [ConfigParam(name="foo", type="string", default="bar")]
+        sample_pipeline.functions = [Function(name="helper", docstring="A helper")]
+
+        pages = MarkdownRenderer().render_pages(sample_pipeline)
+
+        assert set(pages) == {
+            "index.md",
+            "inputs.md",
+            "config.md",
+            "workflows.md",
+            "processes.md",
+            "functions.md",
+        }
+        assert "foo" in pages["config.md"]
+        assert "helper" in pages["functions.md"]
+
+    def test_html_returns_index(self, sample_pipeline: Pipeline):
+        pages = HTMLRenderer(use_tailwind=False).render_pages(sample_pipeline)
+
+        assert set(pages) == {"index.html"}
+        assert "<!doctype html>" in pages["index.html"].lower()
+
+    def test_json_filename_follows_the_pipeline_name(self, sample_pipeline: Pipeline):
+        pages = JSONRenderer().render_pages(sample_pipeline)
+
+        assert set(pages) == {"test-pipeline-api.json"}
+        assert json.loads(pages["test-pipeline-api.json"])["pipeline"]["name"] == "test-pipeline"
+
+    def test_yaml_filename_follows_the_pipeline_name(self, sample_pipeline: Pipeline):
+        pages = YAMLRenderer().render_pages(sample_pipeline)
+
+        assert set(pages) == {"test-pipeline-api.yaml"}
+        assert (
+            yaml.safe_load(pages["test-pipeline-api.yaml"])["pipeline"]["name"] == "test-pipeline"
+        )
+
+    def test_data_filenames_sanitise_the_pipeline_name(self):
+        pipeline = Pipeline(metadata=PipelineMetadata(name="nf-core/rnaseq"))
+
+        assert set(JSONRenderer().render_pages(pipeline)) == {"nf-core_rnaseq-api.json"}
+
+    def test_data_filenames_fall_back_when_unnamed(self):
+        assert set(YAMLRenderer().render_pages(Pipeline())) == {"pipeline-api.yaml"}
+
+    def test_table_wraps_in_markers(self, sample_pipeline: Pipeline):
+        pages = TableRenderer().render_pages(sample_pipeline)
+
+        assert set(pages) == {"README.md"}
+        assert pages["README.md"].startswith(BEGIN_MARKER)
+        assert pages["README.md"].rstrip().endswith(END_MARKER)
+
+    @pytest.mark.parametrize("output_format", sorted(RENDERERS))
+    def test_pages_are_exactly_what_render_to_directory_writes(
+        self, sample_pipeline: Pipeline, tmp_path: Path, output_format: str
+    ):
+        """
+        The whole point of render_pages(): consumers should be able to drop the
+        write-to-a-temp-dir-and-read-it-back round trip without changing what
+        they get. Generation info is off so the two calls can't disagree on the
+        timestamp.
+        """
+        renderer = _renderer(output_format, include_generation_info=False)
+
+        pages = renderer.render_pages(sample_pipeline)
+        files = renderer.render_to_directory(sample_pipeline, tmp_path)
+
+        assert [f.name for f in files] == list(pages)
+        for file_path in files:
+            assert file_path.read_text(encoding="utf-8") == pages[file_path.name]
+
+    def test_table_directory_output_diverges_when_injecting(
+        self, sample_pipeline: Pipeline, tmp_path: Path
+    ):
+        """
+        The documented exception: injecting into an existing README depends on
+        what is already on disk, so render_pages() can't express it.
+        """
+        readme = tmp_path / "README.md"
+        readme.write_text(f"# Kept heading\n\n{BEGIN_MARKER}\n{END_MARKER}\n", encoding="utf-8")
+        renderer = TableRenderer(include_generation_info=False)
+
+        renderer.render_to_directory(sample_pipeline, tmp_path)
+
+        written = readme.read_text(encoding="utf-8")
+        assert "# Kept heading" in written
+        assert written != renderer.render_pages(sample_pipeline)["README.md"]
+
+
+class TestReproducibleOutput:
+    """``include_generation_info=False`` must make output byte-identical."""
+
+    @pytest.mark.parametrize("output_format", sorted(RENDERERS))
+    def test_render_is_byte_identical(
+        self, sample_pipeline: Pipeline, output_format: str, advancing_clock
+    ):
+        first = _renderer(output_format, include_generation_info=False).render(sample_pipeline)
+        second = _renderer(output_format, include_generation_info=False).render(sample_pipeline)
+
+        assert first.encode("utf-8") == second.encode("utf-8")
+
+    @pytest.mark.parametrize("output_format", sorted(RENDERERS))
+    def test_render_pages_is_byte_identical(
+        self, sample_pipeline: Pipeline, output_format: str, advancing_clock
+    ):
+        first = _renderer(output_format, include_generation_info=False).render_pages(
+            sample_pipeline
+        )
+        second = _renderer(output_format, include_generation_info=False).render_pages(
+            sample_pipeline
+        )
+
+        assert {k: v.encode("utf-8") for k, v in first.items()} == {
+            k: v.encode("utf-8") for k, v in second.items()
+        }
+
+    @pytest.mark.parametrize("output_format", ["markdown", "table", "json", "html"])
+    def test_default_output_varies_between_runs(
+        self, sample_pipeline: Pipeline, output_format: str, advancing_clock
+    ):
+        """The guard for the tests above: without the flag, output does change."""
+        first = _renderer(output_format).render(sample_pipeline)
+        second = _renderer(output_format).render(sample_pipeline)
+
+        assert first != second
+
+    def test_yaml_is_reproducible_either_way(self, sample_pipeline: Pipeline, advancing_clock):
+        """YAML embeds no generation metadata, so the flag is a no-op for it."""
+        assert YAMLRenderer().render(sample_pipeline) == YAMLRenderer(
+            include_generation_info=False
+        ).render(sample_pipeline)
+
+    def test_markdown_drops_the_footer(self, sample_pipeline: Pipeline):
+        output = MarkdownRenderer(include_generation_info=False).render(sample_pipeline)
+
+        assert "Documentation generated by" not in output
+        # The documentation itself is untouched
+        assert "PROCESS_A" in output
+
+    def test_markdown_pages_drop_the_footer(self, sample_pipeline: Pipeline):
+        pages = MarkdownRenderer(include_generation_info=False).render_pages(sample_pipeline)
+
+        assert all("Documentation generated by" not in page for page in pages.values())
+
+    def test_table_drops_the_footer(self, sample_pipeline: Pipeline):
+        output = TableRenderer(include_generation_info=False).render(sample_pipeline)
+
+        assert "Documentation generated by" not in output
+        assert "## Processes" in output
+
+    def test_table_template_output_drops_the_footer(self, sample_pipeline: Pipeline):
+        output = TableRenderer(include_generation_info=False).render_from_template(
+            sample_pipeline, "{{ header }}\n\n{{ processes }}"
+        )
+
+        assert "Documentation generated by" not in output
+        assert "## Processes" in output
+
+    def test_json_drops_the_generated_by_key(self, sample_pipeline: Pipeline):
+        data = json.loads(JSONRenderer(include_generation_info=False).render(sample_pipeline))
+
+        assert "generated_by" not in data
+        assert data["pipeline"]["name"] == "test-pipeline"
+
+    def test_json_keeps_the_generated_by_key_by_default(self, sample_pipeline: Pipeline):
+        data = json.loads(JSONRenderer().render(sample_pipeline))
+
+        assert "generated_at" in data["generated_by"]
+
+    def test_html_drops_only_the_timestamp(self, sample_pipeline: Pipeline):
+        output = HTMLRenderer(use_tailwind=False, include_generation_info=False).render(
+            sample_pipeline
+        )
+
+        # The timestamp is the only part that moves between runs
+        assert " UTC" not in output
+        # The attribution and the version are the same every run, so they stay
+        assert "Documentation generated by" in output
+        assert f"v{nf_docs.__version__}" in output
+        assert "built with" in output
+        assert "https://nextflow.io" in output
+
+    def test_html_keeps_the_timestamp_by_default(self, sample_pipeline: Pipeline):
+        output = HTMLRenderer(use_tailwind=False).render(sample_pipeline)
+
+        assert "Documentation generated by" in output
+        assert " UTC" in output
+
+    def test_generation_info_is_on_by_default(self):
+        assert MarkdownRenderer().include_generation_info is True
+        assert JSONRenderer().include_generation_info is True
+        assert HTMLRenderer(use_tailwind=False).include_generation_info is True
+        assert YAMLRenderer().include_generation_info is True
+        assert TableRenderer().include_generation_info is True
+
+    def test_flag_composes_with_other_renderer_options(self, sample_pipeline: Pipeline):
+        """It's keyword-only, so it can't collide with the positional options."""
+        renderer = JSONRenderer("Custom Title", 4, include_generation_info=False)
+        output = renderer.render(sample_pipeline)
+
+        assert json.loads(output)["pipeline"]["name"] == "Custom Title"
+        assert "generated_by" not in output
+        assert '\n    "pipeline"' in output
