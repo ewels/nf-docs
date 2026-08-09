@@ -1,7 +1,6 @@
 """Tests for output renderers."""
 
 import json
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -789,31 +788,6 @@ def _renderer(output_format: str, **kwargs) -> BaseRenderer:
     return RENDERERS[output_format](**kwargs)
 
 
-class _AdvancingClock:
-    """
-    A ``datetime`` stand-in whose ``now()`` moves a second forward every call.
-
-    Real runs of the test suite finish inside the same wall-clock second, so
-    without this the timestamped output would compare equal by accident and the
-    reproducibility tests would pass whatever ``include_generation_info`` did.
-    """
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def now(self, tz=None) -> datetime:
-        self.calls += 1
-        return datetime(2024, 1, 1, 12, 0, 0, tzinfo=tz) + timedelta(seconds=self.calls)
-
-
-@pytest.fixture
-def advancing_clock(monkeypatch) -> _AdvancingClock:
-    """Make every generation timestamp differ from the last one."""
-    clock = _AdvancingClock()
-    monkeypatch.setattr("nf_docs.generation_info.datetime", clock)
-    return clock
-
-
 class TestRenderPages:
     """Tests for render_pages(), the in-memory form of render_to_directory()."""
 
@@ -925,7 +899,7 @@ class TestReproducibleOutput:
 
     @pytest.mark.parametrize("output_format", sorted(RENDERERS))
     def test_render_is_byte_identical(
-        self, sample_pipeline: Pipeline, output_format: str, advancing_clock: _AdvancingClock
+        self, sample_pipeline: Pipeline, output_format: str, advancing_clock
     ):
         first = _renderer(output_format, include_generation_info=False).render(sample_pipeline)
         second = _renderer(output_format, include_generation_info=False).render(sample_pipeline)
@@ -934,7 +908,7 @@ class TestReproducibleOutput:
 
     @pytest.mark.parametrize("output_format", sorted(RENDERERS))
     def test_render_pages_is_byte_identical(
-        self, sample_pipeline: Pipeline, output_format: str, advancing_clock: _AdvancingClock
+        self, sample_pipeline: Pipeline, output_format: str, advancing_clock
     ):
         first = _renderer(output_format, include_generation_info=False).render_pages(
             sample_pipeline
@@ -949,7 +923,7 @@ class TestReproducibleOutput:
 
     @pytest.mark.parametrize("output_format", ["markdown", "table", "json", "html"])
     def test_default_output_varies_between_runs(
-        self, sample_pipeline: Pipeline, output_format: str, advancing_clock: _AdvancingClock
+        self, sample_pipeline: Pipeline, output_format: str, advancing_clock
     ):
         """The guard for the tests above: without the flag, output does change."""
         first = _renderer(output_format).render(sample_pipeline)
@@ -957,9 +931,7 @@ class TestReproducibleOutput:
 
         assert first != second
 
-    def test_yaml_is_reproducible_either_way(
-        self, sample_pipeline: Pipeline, advancing_clock: _AdvancingClock
-    ):
+    def test_yaml_is_reproducible_either_way(self, sample_pipeline: Pipeline, advancing_clock):
         """YAML embeds no generation metadata, so the flag is a no-op for it."""
         assert YAMLRenderer().render(sample_pipeline) == YAMLRenderer(
             include_generation_info=False

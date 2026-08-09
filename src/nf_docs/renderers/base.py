@@ -56,7 +56,8 @@ class BaseRenderer(ABC):
         generator, a build hook, a test - can use this instead of writing to a
         temporary directory and reading the files back.
 
-        Which files appear depends on the pipeline. The Markdown renderer only
+        Keys are plain file names, not paths - no renderer nests its output.
+        Which files appear depends on the pipeline: the Markdown renderer only
         emits ``config.md`` when there are config parameters, for example, so
         don't assume a fixed set of keys.
 
@@ -132,7 +133,6 @@ class BaseRenderer(ABC):
         created_files: list[Path] = []
         for filename, content in self.render_pages(pipeline).items():
             file_path = output_path / filename
-            file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
             created_files.append(file_path)
 

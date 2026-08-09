@@ -197,10 +197,8 @@ class TableRenderer(BaseRenderer):
         If the README.md already exists and contains ``<!-- BEGIN_NF_DOCS -->`` /
         ``<!-- END_NF_DOCS -->`` markers, the generated content is injected between
         them.  When the markers contain ``{{ section }}`` template tags, only the
-        requested sections are rendered.  This is why the table renderer keeps its
-        own implementation rather than using the base class's: the result depends
-        on what is already in the destination, so it isn't expressible as
-        :meth:`render_pages`.
+        requested sections are rendered.  See :meth:`render_pages` for why this
+        renderer keeps its own implementation.
         Args:
             pipeline: The Pipeline model to render.
             output_dir: Target directory (created if absent).

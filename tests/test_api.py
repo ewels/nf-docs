@@ -1,7 +1,6 @@
 """Tests for the high-level Python API (nf_docs.api)."""
 
 import json
-from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,22 +16,6 @@ from nf_docs.output import (
     normalize_format,
     resolve_source,
 )
-
-
-class _AdvancingClock:
-    """
-    A ``datetime`` stand-in whose ``now()`` moves a second forward every call.
-
-    The suite runs inside a single wall-clock second, so without this the
-    reproducibility tests would compare equal whatever the flag did.
-    """
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    def now(self, tz=None) -> datetime:
-        self.calls += 1
-        return datetime(2024, 1, 1, 12, 0, 0, tzinfo=tz) + timedelta(seconds=self.calls)
 
 
 @pytest.fixture
@@ -227,7 +210,8 @@ class TestRenderPages:
 
     @pytest.mark.parametrize("output_format", ["html", "markdown", "table", "json", "yaml"])
     def test_all_formats(self, rendered_pipeline: Pipeline, output_format: str) -> None:
-        pages = render_pages(rendered_pipeline, output_format)
+        kwargs = {"use_tailwind": False} if output_format == "html" else {}
+        pages = render_pages(rendered_pipeline, output_format, **kwargs)
         assert pages
         assert all(isinstance(name, str) and content for name, content in pages.items())
 
@@ -271,80 +255,50 @@ class TestRenderPages:
 class TestReproducibleOutput:
     """include_generation_info=False reaches the renderers through the facade."""
 
-    @pytest.mark.parametrize("output_format", ["html", "markdown", "table", "json", "yaml"])
-    def test_render_is_byte_identical(
-        self, rendered_pipeline: Pipeline, output_format: str, monkeypatch
+    def test_the_flag_reaches_the_renderer(
+        self, rendered_pipeline: Pipeline, advancing_clock
     ) -> None:
-        monkeypatch.setattr("nf_docs.generation_info.datetime", _AdvancingClock())
-        kwargs = {"use_tailwind": False} if output_format == "html" else {}
+        """
+        The facade only has to thread the flag through to the renderer.
+        Per-format byte identity is covered at the renderer level, in
+        tests/test_renderers.py::TestReproducibleOutput.
+        """
+        assert render(rendered_pipeline, "markdown", include_generation_info=False) == render(
+            rendered_pipeline, "markdown", include_generation_info=False
+        )
+        assert render_pages(
+            rendered_pipeline, "markdown", include_generation_info=False
+        ) == render_pages(rendered_pipeline, "markdown", include_generation_info=False)
 
-        first = render(
-            rendered_pipeline, output_format, include_generation_info=False, **kwargs
-        ).encode("utf-8")
-        second = render(
-            rendered_pipeline, output_format, include_generation_info=False, **kwargs
-        ).encode("utf-8")
-
-        assert first == second
-
-    @pytest.mark.parametrize("output_format", ["html", "markdown", "table", "json", "yaml"])
-    def test_render_pages_is_byte_identical(
-        self, rendered_pipeline: Pipeline, output_format: str, monkeypatch
+    def test_generate_writes_identical_bytes(
+        self, sample_pipeline: Path, tmp_path: Path, advancing_clock
     ) -> None:
-        monkeypatch.setattr("nf_docs.generation_info.datetime", _AdvancingClock())
-        kwargs = {"use_tailwind": False} if output_format == "html" else {}
-
-        first = render_pages(
-            rendered_pipeline, output_format, include_generation_info=False, **kwargs
-        )
-        second = render_pages(
-            rendered_pipeline, output_format, include_generation_info=False, **kwargs
-        )
-
-        assert first == second
-
-    def test_generate_writes_identical_bytes(self, sample_pipeline: Path, tmp_path: Path) -> None:
         """The actual requirement: two builds produce the same files on disk."""
         with patch.object(PipelineExtractor, "_extract_from_lsp"):
-            with patch("nf_docs.generation_info.datetime", _AdvancingClock()):
-                first = generate(
-                    sample_pipeline,
-                    output_format="markdown",
-                    output=tmp_path / "first",
-                    include_generation_info=False,
-                )
-                second = generate(
-                    sample_pipeline,
-                    output_format="markdown",
-                    output=tmp_path / "second",
-                    include_generation_info=False,
-                )
+            first = generate(
+                sample_pipeline,
+                output_format="markdown",
+                output=tmp_path / "first",
+                include_generation_info=False,
+            )
+            second = generate(
+                sample_pipeline,
+                output_format="markdown",
+                output=tmp_path / "second",
+                include_generation_info=False,
+            )
 
         assert [p.name for p in first] == [p.name for p in second]
         for a, b in zip(first, second, strict=True):
             assert a.read_bytes() == b.read_bytes()
 
-    def test_single_file_output_is_reproducible(self, module_dir: Path) -> None:
+    def test_single_file_output_is_reproducible(self, module_dir: Path, advancing_clock) -> None:
         """Single-module output goes through render_single_file(), not render()."""
         with patch.object(PipelineExtractor, "_extract_from_lsp"):
-            with patch("nf_docs.generation_info.datetime", _AdvancingClock()):
-                pipeline = extract(module_dir)
-                first = render(
-                    pipeline,
-                    "html",
-                    single_file=True,
-                    use_tailwind=False,
-                    include_generation_info=False,
-                )
-                second = render(
-                    pipeline,
-                    "html",
-                    single_file=True,
-                    use_tailwind=False,
-                    include_generation_info=False,
-                )
+            pipeline = extract(module_dir)
 
-        assert first == second
+        kwargs = {"single_file": True, "use_tailwind": False, "include_generation_info": False}
+        assert render(pipeline, "html", **kwargs) == render(pipeline, "html", **kwargs)
 
 
 class TestGenerate:

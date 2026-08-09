@@ -183,7 +183,9 @@ def render_pages(
     corresponding entries, so don't assume a fixed set of keys. HTML returns
     ``index.html``, JSON and YAML a single ``<pipeline name>-api.json`` /
     ``.yaml``, and ``table`` a ``README.md`` wrapped in the ``BEGIN_NF_DOCS``
-    markers.
+    markers - see :meth:`~nf_docs.renderers.TableRenderer.render_pages` for the
+    one case where ``table`` output here differs from what :func:`generate`
+    writes.
 
     Args:
         pipeline: The Pipeline model to render
@@ -200,12 +202,6 @@ def render_pages(
 
     Raises:
         ValueError: If ``output_format`` is not supported
-
-    Note:
-        ``table`` output written by :func:`generate` is injected into an
-        existing ``README.md`` when that file already carries the markers. That
-        depends on what's on disk, so it can't be expressed here - this function
-        always returns the standalone form.
     """
     renderer = get_renderer(normalize_format(output_format))(title=title, **renderer_kwargs)
     return renderer.render_pages(pipeline)
