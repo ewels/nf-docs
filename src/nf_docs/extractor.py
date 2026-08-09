@@ -246,10 +246,6 @@ class PipelineExtractor:
             )
             return pipeline
 
-        # Names of every schema parameter, including any dropped by config
-        # filtering below. Config params matching one of these are suppressed
-        # from the Configuration section, so a parameter the user asked to hide
-        # doesn't simply reappear under a different heading.
         schema_param_names: set[str] = set()
 
         # Extract from schema (has highest priority for inputs and metadata)
@@ -282,7 +278,10 @@ class PipelineExtractor:
             config_metadata, config_params = parse_config(self.workspace_path, self.nextflow_path)
             # Merge metadata (schema takes priority)
             pipeline.metadata = self._merge_metadata(pipeline.metadata, config_metadata)
-            # Filter config params to exclude those already in inputs and ignored prefixes
+            # Drop config params matching an ignore prefix, and any that name a
+            # schema parameter — including one ``_filter_inputs`` dropped, so a
+            # parameter the user asked to hide doesn't reappear under a
+            # different heading.
             pipeline.config_params = [
                 p
                 for p in config_params
@@ -361,8 +360,9 @@ class PipelineExtractor:
             if (self.config.include_hidden_params or not inp.hidden)
             and not self.config.should_ignore_input_param(inp.name)
         ]
-        if len(kept) < len(inputs):
-            logger.debug(f"Filtered out {len(inputs) - len(kept)} of {len(inputs)} schema inputs")
+        dropped = len(inputs) - len(kept)
+        if dropped:
+            logger.debug(f"Filtered out {dropped} of {len(inputs)} schema inputs")
         return kept
 
     def _merge_metadata(

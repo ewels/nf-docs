@@ -66,11 +66,8 @@ def build_exclude_list(exclude_patterns: list[str] | None = None) -> list[str]:
     Returns:
         The exclusions to send to the language server, de-duplicated and in order
     """
-    excludes: list[str] = []
-    for entry in [*DEFAULT_LSP_EXCLUDES, *(exclude_patterns or [])]:
-        if entry and entry not in excludes:
-            excludes.append(entry)
-    return excludes
+    merged = dict.fromkeys([*DEFAULT_LSP_EXCLUDES, *(exclude_patterns or [])])
+    return [entry for entry in merged if entry]
 
 
 class LSPError(Exception):
@@ -111,7 +108,7 @@ class LSPClient:
         self.workspace_path = Path(workspace_path).resolve()
         self.java_path = java_path
         self.auto_download = auto_download
-        self.exclude_patterns = build_exclude_list(exclude_patterns)
+        self.file_excludes = build_exclude_list(exclude_patterns)
         self._progress = progress_callback or null_progress
         self._process: subprocess.Popen | None = None
         self._request_id = 0
@@ -502,7 +499,7 @@ class LSPClient:
             {
                 "settings": {
                     "nextflow": {
-                        "files": {"exclude": self.exclude_patterns},
+                        "files": {"exclude": self.file_excludes},
                         "formatting": {"harshilAlignment": False},
                         "java": {"home": ""},
                         "suppressFutureWarnings": False,

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 import rich_click as click
+import yaml
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.progress import (
@@ -23,18 +24,12 @@ from rich.progress import (
 
 from nf_docs import __version__
 from nf_docs.api import extract as extract_pipeline
-from nf_docs.config import (
-    DEFAULT_CONFIG,
-    NfDocsConfig,
-    get_config_path,
-    get_example_config,
-    load_config,
-)
+from nf_docs.config import NfDocsConfig, get_config_path, get_example_config, load_config
 from nf_docs.extractor import ExtractionError, PipelineExtractor
 from nf_docs.lsp_client import LSPError
 from nf_docs.output import (
     DIRECTORY_FORMATS,
-    SUPPORTED_FORMATS,
+    FORMAT_ALIASES,
     default_output_dir,
     normalize_format,
     resolve_data_file_path,
@@ -43,7 +38,7 @@ from nf_docs.output import (
     streams_by_default,
 )
 from nf_docs.progress import ProgressUpdate
-from nf_docs.renderers import get_renderer
+from nf_docs.renderers import RENDERERS, get_renderer
 
 console = Console()
 
@@ -202,16 +197,17 @@ def _resolve_output_format(output_format: str | None, config: NfDocsConfig) -> s
     if output_format is not None:
         return normalize_format(output_format)
 
-    configured = normalize_format(config.default_format)
-    if configured in SUPPORTED_FORMATS:
-        return configured
+    try:
+        get_renderer(config.default_format)
+    except ValueError:
+        fallback = NfDocsConfig().default_format
+        console.print(
+            f"[yellow]Ignoring unknown default_format {config.default_format!r} "
+            f"in {get_config_path()}, using {fallback}[/yellow]"
+        )
+        return fallback
 
-    fallback = normalize_format(DEFAULT_CONFIG["default_format"])
-    console.print(
-        f"[yellow]Ignoring unknown default_format {config.default_format!r} "
-        f"in {get_config_path()}, using {fallback}[/yellow]"
-    )
-    return fallback
+    return normalize_format(config.default_format)
 
 
 @main.command()
@@ -220,7 +216,7 @@ def _resolve_output_format(output_format: str | None, config: NfDocsConfig) -> s
     "--format",
     "-f",
     "output_format",
-    type=click.Choice(["json", "yaml", "markdown", "md", "html", "table"], case_sensitive=False),
+    type=click.Choice(sorted({*RENDERERS, *FORMAT_ALIASES}), case_sensitive=False),
     default=None,
     help=(
         "Output format: json, yaml, markdown (or md), html, table "
@@ -695,18 +691,9 @@ def config(init_config: bool, show_example: bool, path: bool) -> None:
     console.print()
     console.print("[bold]Current settings:[/bold]")
 
-    for key, value in load_config().to_dict().items():
-        if isinstance(value, list):
-            if value:
-                console.print(f"  {key}:")
-                for item in value:
-                    console.print(f"    - {item}")
-            else:
-                console.print(f"  {key}: []")
-        elif isinstance(value, bool):
-            console.print(f"  {key}: {str(value).lower()}")
-        else:
-            console.print(f"  {key}: {value}")
+    # Dump as YAML so what's printed is exactly what you'd write in the file.
+    # click.echo rather than console.print, so rich doesn't read "[]" as markup.
+    click.echo(yaml.safe_dump(load_config().to_dict(), sort_keys=False))
 
 
 if __name__ == "__main__":

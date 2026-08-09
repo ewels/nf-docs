@@ -17,6 +17,14 @@ def runner():
     return CliRunner()
 
 
+def write_user_config(body: str) -> Path:
+    """Write a config file at the (isolated) XDG config path and return its path."""
+    config_file = get_config_path()
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(body, encoding="utf-8")
+    return config_file
+
+
 class TestMainCommand:
     def test_help(self, runner: CliRunner):
         result = runner.invoke(main, ["--help"])
@@ -276,15 +284,9 @@ class TestDefaultFormatConfig:
     directory, so these write a real config file and exercise ``load_config()``.
     """
 
-    def _write_config(self, body: str) -> Path:
-        config_file = get_config_path()
-        config_file.parent.mkdir(parents=True, exist_ok=True)
-        config_file.write_text(body, encoding="utf-8")
-        return config_file
-
     def test_default_format_from_config_is_used(self, runner: CliRunner, sample_pipeline: Path):
         """With no -f, the configured format wins over the built-in html."""
-        self._write_config("default_format: json\n")
+        write_user_config("default_format: json\n")
 
         with patch.object(PipelineExtractor, "_extract_from_lsp"):
             result = runner.invoke(generate, [str(sample_pipeline)])
@@ -294,7 +296,7 @@ class TestDefaultFormatConfig:
 
     def test_explicit_format_flag_wins(self, runner: CliRunner, sample_pipeline: Path):
         """An explicit -f overrides the configured default."""
-        self._write_config("default_format: json\n")
+        write_user_config("default_format: json\n")
 
         with patch.object(PipelineExtractor, "_extract_from_lsp"):
             result = runner.invoke(generate, [str(sample_pipeline), "--format", "yaml"])
@@ -318,7 +320,7 @@ class TestDefaultFormatConfig:
         self, runner: CliRunner, sample_pipeline: Path, tmp_path: Path
     ):
         """A bad config value is a warning and html, not a traceback."""
-        self._write_config("default_format: nonsense\n")
+        write_user_config("default_format: nonsense\n")
         output = tmp_path / "site"
 
         with patch.object(PipelineExtractor, "_extract_from_lsp"):
@@ -354,9 +356,7 @@ class TestConfigCommand:
         assert "ignore_config_prefixes:" in created.read_text()
 
     def test_init_does_not_overwrite(self, runner: CliRunner):
-        existing = get_config_path()
-        existing.parent.mkdir(parents=True)
-        existing.write_text("default_format: json\n")
+        existing = write_user_config("default_format: json\n")
 
         result = runner.invoke(config, ["--init"])
 

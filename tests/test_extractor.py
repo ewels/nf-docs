@@ -342,7 +342,8 @@ class TestConfigOptions:
 
         assert "badge" not in stripped.metadata.readme_content.lower()
         assert "badge" in kept.metadata.readme_content.lower()
-        # Either way the prose is preserved
+        # Either way the prose is preserved - stripping must not eat the body
+        assert "actual description" in stripped.metadata.readme_content.lower()
         assert "actual description" in kept.metadata.readme_content.lower()
 
     def test_max_readme_length_truncates_at_a_line_break(self, tmp_path: Path):
@@ -358,7 +359,7 @@ class TestConfigOptions:
         assert len(content) <= 100
         assert full.startswith(content)
         # Cut on a line boundary, so no line is left half-written
-        assert content.splitlines()[-1] in full.splitlines()
+        assert full[len(content)] == "\n"
 
     def test_exclude_patterns_reach_the_language_server(self, tmp_path: Path):
         """Configured exclude patterns are passed through to the LSP client."""
