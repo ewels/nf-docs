@@ -9,6 +9,7 @@ This package contains renderers for different output formats:
  Table: Compact Markdown tables (terraform-docs style)
 """
 
+from nf_docs.output import FORMAT_ALIASES, normalize_format
 from nf_docs.renderers.base import BaseRenderer
 from nf_docs.renderers.html import HTMLRenderer
 from nf_docs.renderers.json import JSONRenderer
@@ -23,8 +24,20 @@ __all__ = [
     "YAMLRenderer",
     "MarkdownRenderer",
     "HTMLRenderer",
+    "RENDERERS",
     "get_renderer",
 ]
+
+
+# Canonical format name -> renderer class. Aliases (e.g. "md") are resolved by
+# ``nf_docs.output.normalize_format`` before lookup, so they live in one place.
+RENDERERS: dict[str, type[BaseRenderer]] = {
+    "json": JSONRenderer,
+    "yaml": YAMLRenderer,
+    "markdown": MarkdownRenderer,
+    "html": HTMLRenderer,
+    "table": TableRenderer,
+}
 
 
 def get_renderer(format: str) -> type[BaseRenderer]:
@@ -32,7 +45,7 @@ def get_renderer(format: str) -> type[BaseRenderer]:
     Get the renderer class for a given format.
 
     Args:
-        format: Output format (json, yaml, markdown, html)
+        format: Output format (json, yaml, markdown/md, html, table)
 
     Returns:
         Renderer class
@@ -40,18 +53,9 @@ def get_renderer(format: str) -> type[BaseRenderer]:
     Raises:
         ValueError: If format is not supported
     """
-    renderers = {
-        "json": JSONRenderer,
-        "yaml": YAMLRenderer,
-        "markdown": MarkdownRenderer,
-        "md": MarkdownRenderer,
-        "html": HTMLRenderer,
-        "table": TableRenderer,
-    }
-
-    format_lower = format.lower()
-    if format_lower not in renderers:
-        supported = ", ".join(sorted(set(renderers.keys())))
+    canonical = normalize_format(format)
+    if canonical not in RENDERERS:
+        supported = ", ".join(sorted({*RENDERERS, *FORMAT_ALIASES}))
         raise ValueError(f"Unsupported format: {format}. Supported formats: {supported}")
 
-    return renderers[format_lower]
+    return RENDERERS[canonical]

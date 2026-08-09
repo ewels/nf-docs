@@ -6,6 +6,20 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolate_xdg_dirs(tmp_path_factory, monkeypatch) -> None:
+    """
+    Point XDG cache and config at throwaway directories for every test.
+
+    Without this, any test that extracts with caching left entries in the
+    developer's real ``~/.cache/nf-docs/`` - and because the Language Server is
+    mocked out in tests, those entries are empty results that a later real run
+    could pick up.
+    """
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path_factory.mktemp("xdg_cache")))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path_factory.mktemp("xdg_config")))
+
+
 @pytest.fixture
 def sample_schema() -> dict:
     """Sample nextflow_schema.json content."""

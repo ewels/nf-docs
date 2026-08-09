@@ -11,7 +11,6 @@ from nf_docs.config import (
     get_example_config,
     get_xdg_config_home,
     load_config,
-    reset_config,
 )
 
 
@@ -147,19 +146,26 @@ class TestNfDocsConfig:
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    @pytest.fixture(autouse=True)
-    def reset(self) -> None:
-        """Reset global config before and after each test."""
-        reset_config()
-        yield
-        reset_config()
-
     def test_load_default_when_file_missing(self, tmp_path: Path) -> None:
         """Test that defaults are used when config file doesn't exist."""
         config = load_config(tmp_path / "nonexistent" / "config.yaml")
 
         assert config.ignore_config_prefixes == ["genomes."]
         assert config.include_hidden_params is False
+
+    @pytest.mark.parametrize(
+        "contents",
+        ["- ignore_config_prefixes\n- genomes.\n", "just a string\n", "42\n"],
+        ids=["list", "string", "number"],
+    )
+    def test_load_default_when_yaml_is_not_a_mapping(self, tmp_path: Path, contents: str) -> None:
+        """Valid YAML of the wrong shape falls back to defaults, it doesn't raise."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(contents)
+
+        config = load_config(config_file)
+
+        assert config == NfDocsConfig()
 
     def test_load_from_file(self, tmp_path: Path) -> None:
         """Test loading config from a valid YAML file."""

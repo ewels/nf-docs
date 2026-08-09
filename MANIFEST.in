@@ -1,1 +1,2 @@
 recursive-include src/nf_docs/templates *.html *.css
+include src/nf_docs/py.typed

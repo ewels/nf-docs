@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Supported Python API for using nf-docs as a library: `nf_docs.extract()`, `nf_docs.render()` and
+  `nf_docs.generate()`, alongside a wider set of exports from the top-level `nf_docs` namespace
+- `py.typed` marker so type hints reach downstream users
+- `PipelineExtractor` accepts a `config=` argument, so callers can supply an `NfDocsConfig` instead
+  of relying on the global instance
+- New "Python API" documentation page
+
+### Fixed
+
+- The extraction cache is now keyed on the configuration as well as the pipeline contents.
+  Previously a CLI run (which loads `~/.config/nf-docs/config.yaml`) and a library call (which uses
+  defaults) shared a cache entry for the same unchanged pipeline and returned each other's results
+- A config file containing valid YAML of the wrong shape (e.g. a top-level list) falls back to
+  defaults with a warning instead of raising
+- `nf_docs.extract()` and `nf_docs.generate()` raise `ValueError` for a path that doesn't exist,
+  rather than returning an empty `Pipeline` named after the missing directory
+
+### Changed
+
+- Output path policy (format aliases, single-module detection, default filenames) moved from
+  `cli.py` into a new `nf_docs.output` module so the CLI and the Python API share one implementation
+- Library callers now get `NfDocsConfig()` defaults rather than the user's
+  `~/.config/nf-docs/config.yaml`, which the CLI continues to read. This keeps programmatic use
+  reproducible.
+
 ## [Version 0.4.0](https://github.com/ewels/nf-docs/releases/tag/v0.4.0) - 2026-05-29
 
 ### Added

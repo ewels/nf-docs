@@ -97,6 +97,23 @@ nf-docs generate modules/mytool/subtools/main.nf --format md
 By default this writes `README.md` next to `main.nf`. Use `--output` to pick a different path, or
 `--format json` / `--format yaml` to print structured output to stdout instead.
 
+## Use as a Python library
+
+`nf-docs` is a CLI tool first, but it's also an importable Python package. Useful for feeding
+pipeline data into your own tooling, or generating docs as part of a site build:
+
+```python
+import nf_docs
+
+pipeline = nf_docs.extract("./my_pipeline")
+print([p.name for p in pipeline.processes])
+
+markdown = nf_docs.render(pipeline, "markdown")
+files = nf_docs.generate("./my_pipeline", output_format="html", output="site/")
+```
+
+See the [Python API docs](https://ewels.github.io/nf-docs/python-api/) for the full reference.
+
 ## Prek / pre-commit hook
 
 `nf-docs` can generate pipeline documentation automatically before each commit using
