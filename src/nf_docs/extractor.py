@@ -202,7 +202,9 @@ class PipelineExtractor:
                     message="Checking cache...",
                 )
             )
-            cached = self.cache.get(self.workspace_path, target_file=self.target_file)
+            cached = self.cache.get(
+                self.workspace_path, target_file=self.target_file, config=self.config
+            )
             if cached:
                 self._progress(
                     ProgressUpdate(
@@ -223,7 +225,12 @@ class PipelineExtractor:
             self._extract_from_lsp(pipeline, git_info)
 
             if self.cache:
-                self.cache.set(self.workspace_path, pipeline, target_file=self.target_file)
+                self.cache.set(
+                    self.workspace_path,
+                    pipeline,
+                    target_file=self.target_file,
+                    config=self.config,
+                )
 
             self._progress(
                 ProgressUpdate(
@@ -314,7 +321,7 @@ class PipelineExtractor:
 
         # Store in cache
         if self.cache:
-            self.cache.set(self.workspace_path, pipeline)
+            self.cache.set(self.workspace_path, pipeline, config=self.config)
 
         self._progress(
             ProgressUpdate(

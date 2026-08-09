@@ -8,6 +8,8 @@ The configuration file is optional - nf-docs works with sensible defaults
 if no config file exists.
 """
 
+import hashlib
+import json
 import logging
 import os
 from dataclasses import dataclass, field
@@ -116,6 +118,21 @@ class NfDocsConfig:
             exclude_patterns=data.get("exclude_patterns", DEFAULT_CONFIG["exclude_patterns"]),
         )
 
+    def cache_key(self) -> str:
+        """
+        Stable short hash of this configuration.
+
+        Extraction results depend on the config in use, so the cache key has to
+        include it. Without this, a CLI run (which loads the user's config file)
+        and a library call (which uses defaults) would share a cache entry on
+        the same unchanged pipeline and return each other's results.
+
+        Returns:
+            A hex digest suitable for use in a cache filename.
+        """
+        payload = json.dumps(self.to_dict(), sort_keys=True)
+        return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
     def to_dict(self) -> dict[str, Any]:
         """Convert config to a dictionary."""
         return {
@@ -150,6 +167,15 @@ def load_config(config_path: Path | None = None) -> NfDocsConfig:
     try:
         with open(config_path, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
+
+        if not isinstance(data, dict):
+            # Valid YAML, wrong shape (e.g. a top-level list). Treat it the same
+            # as unparseable rather than letting an AttributeError escape.
+            logger.warning(
+                f"Config file {config_path} must contain a mapping of settings, "
+                f"got {type(data).__name__}. Using defaults."
+            )
+            return NfDocsConfig()
 
         logger.debug(f"Loaded config from {config_path}")
         return NfDocsConfig.from_dict(data)

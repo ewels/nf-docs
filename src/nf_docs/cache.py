@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import nf_docs
+from nf_docs.config import NfDocsConfig
 from nf_docs.models import (
     ConfigParam,
     Function,
@@ -133,17 +134,41 @@ class PipelineCache:
                 logger.debug(f"Could not hash {meta}: {e}")
         return hasher.hexdigest()[:32]
 
-    def _get_cache_path(self, workspace: Path, target_file: Path | None = None) -> Path:
-        """Get the cache file path for a workspace (or a target file within it)."""
+    def _get_cache_path(
+        self,
+        workspace: Path,
+        target_file: Path | None = None,
+        config: NfDocsConfig | None = None,
+    ) -> Path:
+        """
+        Get the cache file path for a workspace (or a target file within it).
+
+        The configuration is folded into the content hash rather than added as a
+        separate filename component, which keeps ``_cleanup_old_caches`` working
+        unchanged. The trade-off is that alternating between two configs on one
+        pipeline evicts each entry in turn instead of keeping both; that costs a
+        re-extraction, where sharing an entry would return wrong results.
+        """
         workspace_hash = self._get_workspace_hash(workspace)
+        config_hash = (config or NfDocsConfig()).cache_key()
         if target_file is not None:
-            target_hash = self._get_target_file_hash(target_file)
+            target_hash = self._combine(self._get_target_file_hash(target_file), config_hash)
             return self.cache_dir / f"{nf_docs.__version__}_{workspace_hash}_mod_{target_hash}.json"
-        content_hash = self._get_content_hash(workspace)
+        content_hash = self._combine(self._get_content_hash(workspace), config_hash)
         # Include version in filename to invalidate old caches when nf-docs is updated
         return self.cache_dir / f"{nf_docs.__version__}_{workspace_hash}_{content_hash}.json"
 
-    def get(self, workspace: Path, target_file: Path | None = None) -> Pipeline | None:
+    @staticmethod
+    def _combine(content_hash: str, config_hash: str) -> str:
+        """Fold a config hash into a content hash, keeping the digest length."""
+        return hashlib.sha256(f"{content_hash}:{config_hash}".encode()).hexdigest()
+
+    def get(
+        self,
+        workspace: Path,
+        target_file: Path | None = None,
+        config: NfDocsConfig | None = None,
+    ) -> Pipeline | None:
         """
         Get cached Pipeline if valid.
 
@@ -152,11 +177,14 @@ class PipelineCache:
             target_file: For single-file mode, the .nf file being extracted.
                 The cache key becomes per-file so different modules within the
                 same workspace don't collide.
+            config: Configuration the result was extracted with. Entries are
+                only reused for a matching config; defaults are assumed when
+                this is not given.
 
         Returns:
             Cached Pipeline if valid, None if cache miss or stale
         """
-        cache_path = self._get_cache_path(workspace, target_file)
+        cache_path = self._get_cache_path(workspace, target_file, config)
 
         if not cache_path.exists():
             logger.debug("Cache miss: no cache file")
@@ -177,6 +205,7 @@ class PipelineCache:
         workspace: Path,
         pipeline: Pipeline,
         target_file: Path | None = None,
+        config: NfDocsConfig | None = None,
     ) -> None:
         """
         Store Pipeline in cache.
@@ -185,10 +214,12 @@ class PipelineCache:
             workspace: Path to the pipeline workspace
             pipeline: Pipeline model to cache
             target_file: For single-file mode, the .nf file being extracted.
+            config: Configuration the result was extracted with, so that a
+                different config doesn't read this entry back.
         """
         self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-        cache_path = self._get_cache_path(workspace, target_file)
+        cache_path = self._get_cache_path(workspace, target_file, config)
 
         # Clean up old cache files (per-workspace for pipeline mode, per-file
         # for single-file mode — we don't want one module to evict another).

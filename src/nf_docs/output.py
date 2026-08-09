@@ -112,9 +112,16 @@ def resolve_source(path: str | Path) -> tuple[Path, bool]:
         resolved path points at the ``.nf`` file itself, not its directory.
 
     Raises:
-        ValueError: If ``path`` is a file that isn't a ``.nf`` file
+        ValueError: If ``path`` does not exist, or is a file that isn't a
+            ``.nf`` file
     """
     source = Path(path)
+
+    if not source.exists():
+        # The CLI gets this from click's exists=True; library callers don't, and
+        # extracting a typo'd path otherwise yields an empty Pipeline named
+        # after the typo rather than an error.
+        raise ValueError(f"Path does not exist: {source}")
 
     if source.is_file():
         if source.suffix.lower() != ".nf":

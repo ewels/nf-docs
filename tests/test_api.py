@@ -102,6 +102,32 @@ class TestExtract:
         with pytest.raises(ValueError):
             extract(other)
 
+    def test_rejects_missing_path(self, tmp_path: Path) -> None:
+        """A typo'd path must raise, not return an empty Pipeline named after it."""
+        with pytest.raises(ValueError, match="does not exist"):
+            extract(tmp_path / "no_such_pipeline")
+
+    def test_cache_is_keyed_on_config(self, sample_pipeline: Path) -> None:
+        """
+        Two configs must not share a cache entry.
+
+        Without the config in the cache key a CLI run (user config) and a
+        library call (defaults) return each other's results for an unchanged
+        pipeline.
+        """
+        params = (PipelineMetadata(), [ConfigParam(name="genomes.mm10")])
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            with patch("nf_docs.extractor.parse_config", return_value=params):
+                # Caching left ON deliberately - that is the thing under test.
+                permissive = extract(
+                    sample_pipeline, config=NfDocsConfig(ignore_config_prefixes=[])
+                )
+                restrictive = extract(
+                    sample_pipeline, config=NfDocsConfig(ignore_config_prefixes=["genomes."])
+                )
+        assert [p.name for p in permissive.config_params] == ["genomes.mm10"]
+        assert [p.name for p in restrictive.config_params] == []
+
     def test_config_is_injected(self, sample_pipeline: Path) -> None:
         """A passed config reaches the extractor rather than the global one."""
         config = NfDocsConfig(ignore_config_prefixes=["params."])

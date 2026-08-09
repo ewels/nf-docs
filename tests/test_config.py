@@ -153,6 +153,20 @@ class TestLoadConfig:
         assert config.ignore_config_prefixes == ["genomes."]
         assert config.include_hidden_params is False
 
+    @pytest.mark.parametrize(
+        "contents",
+        ["- ignore_config_prefixes\n- genomes.\n", "just a string\n", "42\n"],
+        ids=["list", "string", "number"],
+    )
+    def test_load_default_when_yaml_is_not_a_mapping(self, tmp_path: Path, contents: str) -> None:
+        """Valid YAML of the wrong shape falls back to defaults, it doesn't raise."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(contents)
+
+        config = load_config(config_file)
+
+        assert config == NfDocsConfig()
+
     def test_load_from_file(self, tmp_path: Path) -> None:
         """Test loading config from a valid YAML file."""
         config_file = tmp_path / "config.yaml"

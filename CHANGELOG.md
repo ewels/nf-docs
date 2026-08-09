@@ -11,6 +11,16 @@
   of relying on the global instance
 - New "Python API" documentation page
 
+### Fixed
+
+- The extraction cache is now keyed on the configuration as well as the pipeline contents.
+  Previously a CLI run (which loads `~/.config/nf-docs/config.yaml`) and a library call (which uses
+  defaults) shared a cache entry for the same unchanged pipeline and returned each other's results
+- A config file containing valid YAML of the wrong shape (e.g. a top-level list) falls back to
+  defaults with a warning instead of raising
+- `nf_docs.extract()` and `nf_docs.generate()` raise `ValueError` for a path that doesn't exist,
+  rather than returning an empty `Pipeline` named after the missing directory
+
 ### Changed
 
 - Output path policy (format aliases, single-module detection, default filenames) moved from

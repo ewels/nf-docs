@@ -212,8 +212,10 @@ into extraction, so don't rely on them.
 
 ## Caching
 
-nf-docs caches extraction results in `~/.cache/nf-docs/`, keyed by pipeline path, nf-docs version,
-and a hash of the pipeline's files. The cache is on by default, matching the CLI:
+nf-docs caches extraction results in `~/.cache/nf-docs/`, keyed by pipeline path, nf-docs version, a
+hash of the pipeline's files, and the configuration used. The config is part of the key so a CLI run
+and a library call on the same pipeline don't return each other's results. The cache is on by
+default, matching the CLI:
 
 ```python
 nf_docs.extract("./my_pipeline", use_cache=False)     # ignore the cache entirely
@@ -231,11 +233,11 @@ PipelineCache().clear()  # everything
 
 The API raises rather than exiting. The exceptions worth catching:
 
-| Exception         | Raised when                                                        |
-| ----------------- | ------------------------------------------------------------------ |
-| `ValueError`      | An unsupported format, or a non-`.nf` file passed as a single file |
-| `LSPError`        | The Language Server can't be found, downloaded, started or queried |
-| `ExtractionError` | Extraction failed                                                  |
+| Exception         | Raised when                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| `ValueError`      | A path that doesn't exist, an unsupported format, or a non-`.nf` file passed as a single file |
+| `LSPError`        | The Language Server can't be found, downloaded, started or queried                            |
+| `ExtractionError` | Extraction failed                                                                             |
 
 ```python
 import nf_docs
