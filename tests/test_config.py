@@ -1,6 +1,7 @@
 """Tests for the configuration system."""
 
 import logging
+from itertools import groupby
 from pathlib import Path
 
 import pytest
@@ -164,21 +165,16 @@ class TestNfDocsConfig:
         isn't a partial failure. load_config() discards all of it and silently
         reverts every option to its default.
         """
-        blocks: list[list[str]] = []
-        for line in get_example_config().splitlines():
-            if line.startswith("#"):
-                if not blocks or blocks[-1] is None:
-                    blocks.append([])
-                blocks[-1].append(line[2:] if line.startswith("# ") else line[1:])
-            elif blocks and blocks[-1] is not None:
-                blocks.append(None)  # type: ignore[arg-type]
-
-        for block in filter(None, blocks):
+        lines = get_example_config().splitlines()
+        for is_comment, group in groupby(lines, lambda line: line.startswith("#")):
+            if not is_comment:
+                continue
+            block = "\n".join(line.removeprefix("#").removeprefix(" ") for line in group)
             try:
-                uncommented = yaml.safe_load("\n".join(block))
+                uncommented = yaml.safe_load(block)
             except yaml.YAMLError:
                 continue  # Prose, not a suggested setting
-            assert not isinstance(uncommented, list), "\n".join(block)
+            assert not isinstance(uncommented, list), block
 
     def test_from_dict_ignores_unknown_keys(self) -> None:
         """A key nf-docs doesn't know about is skipped, not an error."""
