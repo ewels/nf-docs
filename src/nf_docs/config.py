@@ -27,14 +27,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # Prefixes for config parameters to ignore in inputs
     "ignore_input_prefixes": [],
     # Whether to include hidden parameters in documentation
-    "include_hidden_params": False,
-    # Default output format
+    "include_hidden_params": True,
+    # Default output format for the CLI
     "default_format": "html",
     # Maximum README length (in characters) to include. 0 = no limit
     "max_readme_length": 0,
     # Whether to strip badge lines from the top of README files
     "strip_readme_badges": True,
-    # Patterns for files to exclude from LSP analysis
+    # Extra paths for the Language Server to skip when indexing the workspace
     "exclude_patterns": [],
 }
 
@@ -65,19 +65,22 @@ class NfDocsConfig:
             Parameters starting with any of these prefixes will be excluded from
             the Parameters section. Default: [].
         include_hidden_params: Whether to include parameters marked as hidden
-            in the nextflow_schema.json. Default: False.
-        default_format: Default output format when not specified. Default: "html".
+            in the nextflow_schema.json. Default: True.
+        default_format: Default output format for the ``nf-docs generate`` command
+            when ``-f/--format`` is not given. Only the CLI reads this; the Python
+            API takes its format as an argument. Default: "html".
         max_readme_length: Maximum README content length to include (0 = no limit).
             Default: 0.
         strip_readme_badges: Whether to strip badge lines (images/links at the top)
             from README files. Default: True.
-        exclude_patterns: Glob patterns for files to exclude from LSP analysis.
-            Default: [].
+        exclude_patterns: Extra paths for the Language Server to skip when indexing
+            the workspace, added to the built-in exclusions rather than replacing
+            them. Default: [].
     """
 
     ignore_config_prefixes: list[str] = field(default_factory=lambda: ["genomes."])
     ignore_input_prefixes: list[str] = field(default_factory=list)
-    include_hidden_params: bool = False
+    include_hidden_params: bool = True
     default_format: str = "html"
     max_readme_length: int = 0
     strip_readme_badges: bool = True
@@ -217,11 +220,12 @@ ignore_input_prefixes: []
 
 # Whether to include parameters marked as "hidden" in nextflow_schema.json.
 # Hidden parameters are typically advanced options not needed by most users.
-# Default: false
-include_hidden_params: false
+# Set to false to leave them out of the documentation entirely.
+# Default: true
+include_hidden_params: true
 
-# Default output format when -f/--format is not specified.
-# Options: html, json, yaml, markdown, md
+# Default output format for `nf-docs generate` when -f/--format is not specified.
+# Options: html, json, yaml, markdown (or md), table
 # Default: html
 default_format: html
 
@@ -236,10 +240,13 @@ max_readme_length: 0
 # Default: true
 strip_readme_badges: true
 
-# Glob patterns for files to exclude from LSP analysis.
-# Useful for excluding test files, examples, etc.
+# Extra paths for the Nextflow Language Server to skip when indexing.
+# Useful for excluding test data, examples, etc. These are added to the paths
+# nf-docs always excludes (.git, .nf-test, work) rather than replacing them.
+# Entries are passed through to the language server's `nextflow.files.exclude`
+# setting, so directory names are the safest thing to put here.
 # Default: []
 exclude_patterns: []
-#  - "tests/**/*.nf"
-#  - "examples/**/*.nf"
+#  - "tests"
+#  - "examples"
 """

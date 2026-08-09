@@ -206,9 +206,23 @@ config = nf_docs.NfDocsConfig(ignore_config_prefixes=["genomes.", "test."])
 nf_docs.extract("./my_pipeline", config=config)
 ```
 
-`ignore_config_prefixes` drops matching parameters from the Configuration section, and defaults to
-`["genomes."]` for nf-core pipelines. The other `NfDocsConfig` fields exist but aren't yet wired
-into extraction, so don't rely on them.
+The fields:
+
+| Field                     | Default        | Effect                                                                          |
+| ------------------------- | -------------- | ------------------------------------------------------------------------------- |
+| `ignore_config_prefixes`  | `["genomes."]` | Drops matching parameters from the Configuration section                        |
+| `ignore_input_prefixes`   | `[]`           | Drops matching parameters from the Parameters section                           |
+| `include_hidden_params`   | `True`         | Set `False` to leave out parameters marked `hidden` in `nextflow_schema.json`   |
+| `max_readme_length`       | `0`            | Trims README content to this many characters, on a line boundary. `0` = no limit |
+| `strip_readme_badges`     | `True`         | Set `False` to keep the badge lines below a README's title                      |
+| `exclude_patterns`        | `[]`           | Extra paths the Language Server skips when indexing the workspace               |
+| `default_format`          | `"html"`       | CLI only — the format `nf-docs generate` uses without `-f/--format`             |
+
+A parameter dropped by `include_hidden_params` or `ignore_input_prefixes` doesn't reappear under
+Configuration; it's left out of the documentation entirely.
+
+`exclude_patterns` is added to the exclusions nf-docs always sends (`.git`, `.nf-test`, `work`)
+rather than replacing them.
 
 ## Caching
 

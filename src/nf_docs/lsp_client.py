@@ -47,6 +47,31 @@ def get_xdg_data_home() -> Path:
 LANGUAGE_SERVER_REPO = "nextflow-io/language-server"
 LANGUAGE_SERVER_JAR = "language-server-all.jar"
 
+# Paths always excluded from the language server's workspace scan. This list
+# must stay non-empty: the server only initialises a workspace when the
+# configuration it receives differs from its defaults (see initialize()).
+DEFAULT_LSP_EXCLUDES = [".git", ".nf-test", "work"]
+
+
+def build_exclude_list(exclude_patterns: list[str] | None = None) -> list[str]:
+    """
+    Combine the built-in exclusions with any the user configured.
+
+    User patterns are appended rather than substituted, so that configuring
+    them never removes the built-in exclusions or empties the list.
+
+    Args:
+        exclude_patterns: Extra paths/patterns from ``NfDocsConfig.exclude_patterns``
+
+    Returns:
+        The exclusions to send to the language server, de-duplicated and in order
+    """
+    excludes: list[str] = []
+    for entry in [*DEFAULT_LSP_EXCLUDES, *(exclude_patterns or [])]:
+        if entry and entry not in excludes:
+            excludes.append(entry)
+    return excludes
+
 
 class LSPError(Exception):
     """Exception raised for LSP-related errors."""
@@ -69,6 +94,7 @@ class LSPClient:
         java_path: str = "java",
         auto_download: bool = True,
         progress_callback: ProgressCallbackType | None = None,
+        exclude_patterns: list[str] | None = None,
     ):
         """
         Initialize the LSP client.
@@ -79,10 +105,13 @@ class LSPClient:
             java_path: Path to Java executable
             auto_download: Whether to auto-download the language server if not found
             progress_callback: Optional callback for progress updates
+            exclude_patterns: Extra paths to exclude from the workspace scan, added
+                to :data:`DEFAULT_LSP_EXCLUDES`
         """
         self.workspace_path = Path(workspace_path).resolve()
         self.java_path = java_path
         self.auto_download = auto_download
+        self.exclude_patterns = build_exclude_list(exclude_patterns)
         self._progress = progress_callback or null_progress
         self._process: subprocess.Popen | None = None
         self._request_id = 0
@@ -467,15 +496,13 @@ class LSPClient:
         # Send configuration to trigger workspace initialization.
         # The LSP only initializes workspaces when didChangeConfiguration is received
         # AND the configuration differs from defaults in specific fields.
-        # We set excludePatterns to a non-empty list to trigger initialization.
+        # The exclude list is always non-empty, which is what triggers initialization.
         self._send_notification(
             "workspace/didChangeConfiguration",
             {
                 "settings": {
                     "nextflow": {
-                        "files": {
-                            "exclude": [".git", ".nf-test", "work"]  # Non-empty to trigger init
-                        },
+                        "files": {"exclude": self.exclude_patterns},
                         "formatting": {"harshilAlignment": False},
                         "java": {"home": ""},
                         "suppressFutureWarnings": False,

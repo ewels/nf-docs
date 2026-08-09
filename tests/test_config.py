@@ -49,7 +49,7 @@ class TestNfDocsConfig:
         config = NfDocsConfig()
         assert config.ignore_config_prefixes == ["genomes."]
         assert config.ignore_input_prefixes == []
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
         assert config.default_format == "html"
         assert config.max_readme_length == 0
         assert config.strip_readme_badges is True
@@ -86,7 +86,7 @@ class TestNfDocsConfig:
         data = {
             "ignore_config_prefixes": ["custom."],
             "ignore_input_prefixes": ["private."],
-            "include_hidden_params": True,
+            "include_hidden_params": False,
             "default_format": "json",
             "max_readme_length": 5000,
             "strip_readme_badges": False,
@@ -96,7 +96,7 @@ class TestNfDocsConfig:
 
         assert config.ignore_config_prefixes == ["custom."]
         assert config.ignore_input_prefixes == ["private."]
-        assert config.include_hidden_params is True
+        assert config.include_hidden_params is False
         assert config.default_format == "json"
         assert config.max_readme_length == 5000
         assert config.strip_readme_badges is False
@@ -105,13 +105,13 @@ class TestNfDocsConfig:
     def test_from_dict_partial(self) -> None:
         """Test from_dict with only some values specified."""
         data = {
-            "include_hidden_params": True,
+            "include_hidden_params": False,
             "default_format": "yaml",
         }
         config = NfDocsConfig.from_dict(data)
 
         # Specified values
-        assert config.include_hidden_params is True
+        assert config.include_hidden_params is False
         assert config.default_format == "yaml"
 
         # Default values
@@ -129,13 +129,13 @@ class TestNfDocsConfig:
         """Test to_dict conversion."""
         config = NfDocsConfig(
             ignore_config_prefixes=["foo."],
-            include_hidden_params=True,
+            include_hidden_params=False,
             default_format="markdown",
         )
         result = config.to_dict()
 
         assert result["ignore_config_prefixes"] == ["foo."]
-        assert result["include_hidden_params"] is True
+        assert result["include_hidden_params"] is False
         assert result["default_format"] == "markdown"
         assert "ignore_input_prefixes" in result
         assert "max_readme_length" in result
@@ -151,7 +151,7 @@ class TestLoadConfig:
         config = load_config(tmp_path / "nonexistent" / "config.yaml")
 
         assert config.ignore_config_prefixes == ["genomes."]
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
 
     @pytest.mark.parametrize(
         "contents",
@@ -175,7 +175,7 @@ class TestLoadConfig:
 ignore_config_prefixes:
   - "custom."
   - "other."
-include_hidden_params: true
+include_hidden_params: false
 default_format: json
 """
         )
@@ -183,7 +183,7 @@ default_format: json
         config = load_config(config_file)
 
         assert config.ignore_config_prefixes == ["custom.", "other."]
-        assert config.include_hidden_params is True
+        assert config.include_hidden_params is False
         assert config.default_format == "json"
         # Non-specified values should use defaults
         assert config.strip_readme_badges is True
@@ -197,7 +197,7 @@ default_format: json
 
         # Should use all defaults
         assert config.ignore_config_prefixes == ["genomes."]
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
 
     def test_load_invalid_yaml(self, tmp_path: Path) -> None:
         """Test that invalid YAML returns defaults with warning."""
@@ -208,7 +208,7 @@ default_format: json
 
         # Should use defaults on error
         assert config.ignore_config_prefixes == ["genomes."]
-        assert config.include_hidden_params is False
+        assert config.include_hidden_params is True
 
 
 class TestGetExampleConfig:

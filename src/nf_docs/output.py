@@ -35,6 +35,9 @@ SINGLE_FILE_OUTPUT_POLICY: dict[str, tuple[str | None, str]] = {
 # Formats that render as a directory of files rather than a single document.
 DIRECTORY_FORMATS: frozenset[str] = frozenset({"markdown", "html", "table"})
 
+# Every canonical format name, i.e. what ``normalize_format`` may return.
+SUPPORTED_FORMATS: frozenset[str] = frozenset(SINGLE_FILE_OUTPUT_POLICY)
+
 # Filename stem used for json/yaml output of a whole pipeline.
 DATA_FILE_STEM = "pipeline"
 

@@ -10,9 +10,18 @@
 - `PipelineExtractor` accepts a `config=` argument, so callers can supply an `NfDocsConfig` instead
   of relying on the global instance
 - New "Python API" documentation page
+- Every `NfDocsConfig` option now takes effect. `ignore_input_prefixes`, `include_hidden_params`,
+  `max_readme_length` and `exclude_patterns` were documented but never consulted; `default_format`
+  was ignored in favour of a hardcoded `html`
+- Restored the `nf-docs config` command (`--path`, `--show-example`, `--init`), which had been
+  removed by accident along with the config wiring
 
 ### Fixed
 
+- `strip_readme_badges` is consulted again when parsing a README. It was wired up when the option
+  was introduced, then dropped by an unrelated revert in the same release
+- A parameter excluded by `include_hidden_params` or `ignore_input_prefixes` no longer reappears in
+  the Configuration section
 - The extraction cache is now keyed on the configuration as well as the pipeline contents.
   Previously a CLI run (which loads `~/.config/nf-docs/config.yaml`) and a library call (which uses
   defaults) shared a cache entry for the same unchanged pipeline and returned each other's results
@@ -23,6 +32,8 @@
 
 ### Changed
 
+- `include_hidden_params` now defaults to `true`, matching the behaviour nf-docs has always had of
+  showing hidden schema parameters. Set it to `false` to leave them out
 - Output path policy (format aliases, single-module detection, default filenames) moved from
   `cli.py` into a new `nf_docs.output` module so the CLI and the Python API share one implementation
 - Library callers now get `NfDocsConfig()` defaults rather than the user's

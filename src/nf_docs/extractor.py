@@ -30,6 +30,7 @@ from nf_docs.models import (
     Function,
     FunctionParam,
     Pipeline,
+    PipelineInput,
     PipelineMetadata,
     Process,
     ProcessInput,
@@ -245,6 +246,12 @@ class PipelineExtractor:
             )
             return pipeline
 
+        # Names of every schema parameter, including any dropped by config
+        # filtering below. Config params matching one of these are suppressed
+        # from the Configuration section, so a parameter the user asked to hide
+        # doesn't simply reappear under a different heading.
+        schema_param_names: set[str] = set()
+
         # Extract from schema (has highest priority for inputs and metadata)
         schema_file = find_schema_file(self.workspace_path)
         if schema_file:
@@ -259,7 +266,8 @@ class PipelineExtractor:
             try:
                 schema_metadata, schema_inputs = parse_schema(schema_file)
                 pipeline.metadata = schema_metadata
-                pipeline.inputs = schema_inputs
+                schema_param_names = {inp.name for inp in schema_inputs}
+                pipeline.inputs = self._filter_inputs(schema_inputs)
             except Exception as e:
                 logger.warning(f"Failed to parse schema: {e}")
 
@@ -275,11 +283,11 @@ class PipelineExtractor:
             # Merge metadata (schema takes priority)
             pipeline.metadata = self._merge_metadata(pipeline.metadata, config_metadata)
             # Filter config params to exclude those already in inputs and ignored prefixes
-            input_names = {inp.name for inp in pipeline.inputs}
             pipeline.config_params = [
                 p
                 for p in config_params
-                if p.name not in input_names and not self.config.should_ignore_config_param(p.name)
+                if p.name not in schema_param_names
+                and not self.config.should_ignore_config_param(p.name)
             ]
         except Exception as e:
             logger.warning(f"Failed to parse config: {e}")
@@ -333,6 +341,30 @@ class PipelineExtractor:
 
         return pipeline
 
+    def _filter_inputs(self, inputs: list[PipelineInput]) -> list[PipelineInput]:
+        """
+        Drop schema inputs the configuration asks us to leave out.
+
+        Removes parameters marked ``hidden`` in the schema unless
+        ``include_hidden_params`` is set, and any parameter matching
+        ``ignore_input_prefixes``.
+
+        Args:
+            inputs: Parameters as parsed from ``nextflow_schema.json``
+
+        Returns:
+            The parameters that should appear in the documentation
+        """
+        kept = [
+            inp
+            for inp in inputs
+            if (self.config.include_hidden_params or not inp.hidden)
+            and not self.config.should_ignore_input_param(inp.name)
+        ]
+        if len(kept) < len(inputs):
+            logger.debug(f"Filtered out {len(inputs) - len(kept)} of {len(inputs)} schema inputs")
+        return kept
+
     def _merge_metadata(
         self, primary: PipelineMetadata, secondary: PipelineMetadata
     ) -> PipelineMetadata:
@@ -351,7 +383,8 @@ class PipelineExtractor:
         """
         Extract full README content after the first h1 heading.
 
-        Also converts local images to base64 data URIs for portability.
+        Also truncates to ``max_readme_length`` and converts local images to
+        base64 data URIs for portability.
         """
         readme_candidates = [
             self.workspace_path / "README.md",
@@ -364,6 +397,9 @@ class PipelineExtractor:
                 try:
                     content = readme_path.read_text(encoding="utf-8")
                     parsed_content = self._parse_readme_content(content)
+                    # Truncate before embedding images, so the limit applies to
+                    # the prose rather than to base64 data URIs
+                    parsed_content = self._truncate_readme_content(parsed_content)
                     # Convert local images to base64
                     return self._convert_images_to_base64(parsed_content, readme_path.parent)
                 except Exception as e:
@@ -371,17 +407,41 @@ class PipelineExtractor:
 
         return ""
 
+    def _truncate_readme_content(self, content: str) -> str:
+        """
+        Trim README content to ``max_readme_length`` characters.
+
+        Cuts at the last line break at or before the limit so that markdown
+        constructs aren't severed mid-line, falling back to a hard cut for
+        content with no line break in range. A limit of 0 means no limit.
+
+        Args:
+            content: Parsed README content
+
+        Returns:
+            The content, truncated if it exceeded the configured limit
+        """
+        limit = self.config.max_readme_length
+        if limit <= 0 or len(content) <= limit:
+            return content
+
+        cut = content.rfind("\n", 0, limit + 1)
+        truncated = content[:cut] if cut > 0 else content[:limit]
+        logger.debug(f"Truncated README from {len(content)} to {len(truncated)} characters")
+        return truncated
+
     def _parse_readme_content(self, content: str) -> str:
         """
         Parse README content, returning everything after the first h1 heading.
 
-        Strips the title (markdown # or HTML <h1>) and any badge lines immediately following.
+        Strips the title (markdown # or HTML <h1>) and, when
+        ``strip_readme_badges`` is set, any badge lines immediately following.
         """
         lines = content.split("\n")
         result_lines: list[str] = []
         found_title = False
         in_html_h1 = False
-        skip_badges = True
+        skip_badges = self.config.strip_readme_badges
 
         for line in lines:
             stripped = line.strip()
@@ -410,7 +470,7 @@ class PipelineExtractor:
                 # Still looking for title
                 continue
 
-            # Skip badge lines immediately after title
+            # Skip badge lines immediately after title (if configured)
             if skip_badges:
                 # Badge patterns: [![...], ![...], [!..., or lines containing "badge"
                 if (
@@ -531,6 +591,7 @@ class PipelineExtractor:
             lsp_root,
             server_jar=self.language_server_jar,
             progress_callback=self._progress,
+            exclude_patterns=self.config.exclude_patterns,
         ) as client:
             # Try workspace symbols first to see what the LSP knows about
             workspace_symbols = client.get_workspace_symbols("")

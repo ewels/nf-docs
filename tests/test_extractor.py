@@ -1,10 +1,13 @@
 """Tests for the pipeline extractor."""
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
 from nf_docs.cache import PipelineCache
+from nf_docs.config import NfDocsConfig
 from nf_docs.extractor import PipelineExtractor, find_pipeline_root
+from nf_docs.models import ConfigParam, Pipeline, PipelineMetadata
 
 
 class TestPipelineExtractor:
@@ -226,6 +229,151 @@ class TestInputGroups:
             groups = pipeline.get_input_groups()
             assert "Input/output options" in groups
             assert "Reference genome options" in groups
+
+
+class TestConfigOptions:
+    """
+    Each NfDocsConfig option changes what comes out of extraction.
+
+    These assert both settings of every option, so they fail whether an option
+    stops being consulted or starts being applied backwards.
+    """
+
+    def _write_schema(self, workspace: Path) -> None:
+        """Write a schema with one hidden parameter and one prefixed parameter."""
+        schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "title": "Test Pipeline",
+            "$defs": {
+                "options": {
+                    "title": "Options",
+                    "type": "object",
+                    "properties": {
+                        "input": {"type": "string", "description": "Samplesheet"},
+                        "tracedir": {
+                            "type": "string",
+                            "description": "Trace directory",
+                            "hidden": True,
+                        },
+                        "internal_debug": {"type": "boolean", "description": "Debug"},
+                    },
+                }
+            },
+        }
+        (workspace / "nextflow_schema.json").write_text(json.dumps(schema))
+
+    def _extract(self, workspace: Path, config: NfDocsConfig) -> Pipeline:
+        """Extract from ``workspace`` with the LSP and cache out of the way."""
+        with patch.object(PipelineExtractor, "_extract_from_lsp"):
+            extractor = PipelineExtractor(workspace_path=workspace, config=config, use_cache=False)
+            return extractor.extract()
+
+    def test_include_hidden_params_keeps_hidden_by_default(self, tmp_path: Path):
+        """Hidden schema parameters are included unless the option says otherwise."""
+        self._write_schema(tmp_path)
+
+        pipeline = self._extract(tmp_path, NfDocsConfig())
+
+        assert "tracedir" in {inp.name for inp in pipeline.inputs}
+
+    def test_include_hidden_params_false_drops_hidden(self, tmp_path: Path):
+        """Setting include_hidden_params to False removes hidden parameters."""
+        self._write_schema(tmp_path)
+
+        pipeline = self._extract(tmp_path, NfDocsConfig(include_hidden_params=False))
+
+        input_names = {inp.name for inp in pipeline.inputs}
+        assert "tracedir" not in input_names
+        # Visible parameters are untouched
+        assert "input" in input_names
+
+    def test_ignore_input_prefixes_drops_matching_params(self, tmp_path: Path):
+        """Inputs matching ignore_input_prefixes are excluded."""
+        self._write_schema(tmp_path)
+
+        kept = self._extract(tmp_path, NfDocsConfig())
+        assert "internal_debug" in {inp.name for inp in kept.inputs}
+
+        dropped = self._extract(tmp_path, NfDocsConfig(ignore_input_prefixes=["internal_"]))
+        input_names = {inp.name for inp in dropped.inputs}
+        assert "internal_debug" not in input_names
+        assert "input" in input_names
+
+    def test_filtered_inputs_do_not_reappear_as_config_params(self, tmp_path: Path):
+        """A parameter hidden from the inputs section isn't shown as a config param."""
+        self._write_schema(tmp_path)
+        config_params = [ConfigParam(name="tracedir", default="./trace")]
+
+        with patch(
+            "nf_docs.extractor.parse_config", return_value=(PipelineMetadata(), config_params)
+        ):
+            pipeline = self._extract(tmp_path, NfDocsConfig(include_hidden_params=False))
+
+        assert "tracedir" not in {p.name for p in pipeline.config_params}
+
+    def test_ignore_config_prefixes_drops_matching_params(self, tmp_path: Path):
+        """Config params matching ignore_config_prefixes are excluded."""
+        config_params = [
+            ConfigParam(name="genomes.GRCh38.fasta", default="ref.fa"),
+            ConfigParam(name="max_cpus", default=16),
+        ]
+
+        with patch(
+            "nf_docs.extractor.parse_config", return_value=(PipelineMetadata(), config_params)
+        ):
+            kept = self._extract(tmp_path, NfDocsConfig(ignore_config_prefixes=[]))
+            dropped = self._extract(tmp_path, NfDocsConfig(ignore_config_prefixes=["genomes."]))
+
+        assert "genomes.GRCh38.fasta" in {p.name for p in kept.config_params}
+        dropped_names = {p.name for p in dropped.config_params}
+        assert "genomes.GRCh38.fasta" not in dropped_names
+        assert "max_cpus" in dropped_names
+
+    def test_strip_readme_badges_false_keeps_badges(self, tmp_path: Path):
+        """Badge lines survive when strip_readme_badges is turned off."""
+        (tmp_path / "README.md").write_text(
+            "# My Pipeline\n\n"
+            "[![Build Status](https://example.com/badge.svg)](https://example.com)\n\n"
+            "This is the actual description.\n"
+        )
+
+        stripped = self._extract(tmp_path, NfDocsConfig())
+        kept = self._extract(tmp_path, NfDocsConfig(strip_readme_badges=False))
+
+        assert "badge" not in stripped.metadata.readme_content.lower()
+        assert "badge" in kept.metadata.readme_content.lower()
+        # Either way the prose is preserved
+        assert "actual description" in kept.metadata.readme_content.lower()
+
+    def test_max_readme_length_truncates_at_a_line_break(self, tmp_path: Path):
+        """README content is trimmed to the configured length, on a line boundary."""
+        body = "\n".join(f"Line {i} of the readme." for i in range(50))
+        (tmp_path / "README.md").write_text(f"# My Pipeline\n\n{body}\n")
+
+        full = self._extract(tmp_path, NfDocsConfig()).metadata.readme_content
+        truncated = self._extract(tmp_path, NfDocsConfig(max_readme_length=100))
+        content = truncated.metadata.readme_content
+
+        assert len(full) > 100
+        assert len(content) <= 100
+        assert full.startswith(content)
+        # Cut on a line boundary, so no line is left half-written
+        assert content.splitlines()[-1] in full.splitlines()
+
+    def test_exclude_patterns_reach_the_language_server(self, tmp_path: Path):
+        """Configured exclude patterns are passed through to the LSP client."""
+        (tmp_path / "main.nf").write_text("process FOO {}\n")
+
+        with patch("nf_docs.extractor.LSPClient") as mock_lsp_cls:
+            mock_lsp_cls.return_value.__enter__.return_value.get_workspace_symbols.return_value = []
+            extractor = PipelineExtractor(
+                workspace_path=tmp_path,
+                config=NfDocsConfig(exclude_patterns=["testdata"]),
+                use_cache=False,
+            )
+            extractor.extract()
+
+        assert mock_lsp_cls.call_args.kwargs["exclude_patterns"] == ["testdata"]
 
 
 class TestSymbolNameParsing:
